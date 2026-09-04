@@ -1,0 +1,67 @@
+{
+  "name": "News Selection & Summarization Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        -48
+      ],
+      "id": "80e6df12-ce91-440c-8876-82baa12a011c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "53fdeb89-02ff-402a-a2e4-7b7bee1c321f",
+              "name": "agent",
+              "value": " News Selection & Summarization Agent",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -32,
+        -48
+      ],
+      "id": "fbe15b9a-dce1-456d-b28c-66cd661ea826",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "365337fa-88a5-4e1c-8bc5-ca3bf7b759b6",
+  "meta": {
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
+  },
+  "nodeGroups": [],
+  "id": "674zMbRdxExcIr7P",
+  "tags": []
+}

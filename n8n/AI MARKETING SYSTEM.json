@@ -1,0 +1,156 @@
+{
+  "name": "AI MARKETING SYSTEM",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        -496
+      ],
+      "id": "b391a002-0c29-4eaf-9914-2cc36a69e6da",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "KYicYrK3e7xDzlnG",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KYicYrK3e7xDzlnG",
+          "cachedResultName": "News Collection Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1376,
+        -496
+      ],
+      "id": "48e3d2a3-9ebb-4358-969e-bdf3dfdb1df6",
+      "name": "Call 'News Collection Agent'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "674zMbRdxExcIr7P",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/674zMbRdxExcIr7P",
+          "cachedResultName": "News Selection & Summarization Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1104,
+        -496
+      ],
+      "id": "0db35309-e258-47d8-a617-7aadbf132d19",
+      "name": "Call 'News Selection & Summarization Agent'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "V9BgwJ8sUYQx67NT",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/V9BgwJ8sUYQx67NT",
+          "cachedResultName": "Newsletter Generation & Delivery"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -848,
+        -496
+      ],
+      "id": "4823aae3-4b91-4b03-805d-cc12fb2c5240",
+      "name": "Call 'Newsletter Generation & Delivery'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Call 'News Collection Agent'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'News Selection & Summarization Agent'": {
+      "main": [
+        [
+          {
+            "node": "Call 'Newsletter Generation & Delivery'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'News Collection Agent'": {
+      "main": [
+        [
+          {
+            "node": "Call 'News Selection & Summarization Agent'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e3e59bc2-1f4a-49af-8749-1972f260dfdb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
+  },
+  "nodeGroups": [],
+  "id": "BT6o6b52l0J3Obg4",
+  "tags": [
+    {
+      "name": "agent",
+      "id": "ypW6ZLJlaj5llwS7",
+      "updatedAt": "2026-09-04T17:02:46.273Z",
+      "createdAt": "2026-09-04T17:02:46.273Z"
+    }
+  ]
+}

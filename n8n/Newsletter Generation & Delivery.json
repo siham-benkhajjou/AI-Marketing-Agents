@@ -1,0 +1,67 @@
+{
+  "name": "Newsletter Generation & Delivery",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -224,
+        -128
+      ],
+      "id": "a6b22642-f57a-431f-a695-fdec6b5de4ea",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3d4e40a-7632-4475-a768-ea87fb935d8b",
+              "name": "agent",
+              "value": "Newsletter Generation & Delivery",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        0,
+        -128
+      ],
+      "id": "b859f1cf-1230-4fa6-a659-2708db94d703",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2ae96e31-ac00-4d31-b002-304813a4e9b7",
+  "meta": {
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
+  },
+  "nodeGroups": [],
+  "id": "V9BgwJ8sUYQx67NT",
+  "tags": []
+}

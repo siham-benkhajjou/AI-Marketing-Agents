@@ -1,0 +1,67 @@
+{
+  "name": "News Collection Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        -96
+      ],
+      "id": "3f69bffa-010e-4c15-84b1-56ca20809a07",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6c831f34-849f-4b8a-81f2-7f37759e6e49",
+              "name": "agent",
+              "value": "news collection",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -656,
+        -96
+      ],
+      "id": "3c400535-058a-4eee-97ec-78e122c7e136",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6e8801db-c8bd-4a67-ac38-ac4c28395495",
+  "meta": {
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
+  },
+  "nodeGroups": [],
+  "id": "KYicYrK3e7xDzlnG",
+  "tags": []
+}
