@@ -1,0 +1,189 @@
+{
+  "name": "Newsletter Generation & Delivery1",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        -176
+      ],
+      "id": "fb6f3a43-5675-4fe0-8ac8-cd5094021fb9",
+      "name": "Start test"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"newsletter_id\": \"nl_2026_w37\",\n  \"week\": \"2026-09-08\",\n  \"introduction\": \"Cette semaine : percée en RL, nouveau modèle open-source, et débat sur la régulation IA.\",\n  \"articles\": [\n    {\n      \"article_id\": \"art_001\",\n      \"title\": \"OpenAI lance un nouveau raisonneur RL\",\n      \"source\": \"TechCrunch\",\n      \"original_url\": \"https://techcrunch.com/openai-rl-model\",\n      \"category\": \"Modèles\",\n      \"summary\": \"OpenAI a publié un modèle qui améliore le raisonnement via apprentissage par renforcement.\",\n      \"publication_date\": \"2026-09-07\"\n    },\n    {\n      \"article_id\": \"art_002\",\n      \"title\": \"L'UE avance sur la régulation IA\",\n      \"source\": \"The Verge\",\n      \"original_url\": \"https://theverge.com/eu-ai-act-update\",\n      \"category\": \"Régulation\",\n      \"summary\": \"Le Parlement européen a voté de nouvelles mesures encadrant les modèles à haut risque.\",\n      \"publication_date\": \"2026-09-06\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -832,
+        32
+      ],
+      "id": "c5f6eb0a-5b3c-47a0-878b-a33e21e7ef86",
+      "name": "Mock Articles Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst data = $input.first().json;\n\nif (!data.articles || data.articles.length === 0) {\n  throw new Error(\"Aucun article reçu, arrêt du workflow.\");\n}\n\nconst cleanArticles = data.articles.map(a => ({\n  article_id: a.article_id,\n  title: a.title || \"Sans titre\",\n  source: a.source || \"Source inconnue\",\n  original_url: a.original_url,\n  category: a.category || \"Général\",\n  summary: a.summary || \"\",\n  publication_date: a.publication_date\n}));\n\nreturn [{ json: { ...data, articles: cleanArticles } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -176
+      ],
+      "id": "8dc52ff6-808f-4841-8131-d30cbf6b2711",
+      "name": "Validate Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst newsletterId = data.newsletter_id;\n\nconst articlesWithTracking = data.articles.map(article => {\n  const utm = `utm_source=newsletter&utm_medium=email&utm_campaign=${newsletterId}&utm_content=${article.article_id}`;\n  const separator = article.original_url.includes('?') ? '&' : '?';\n  return {\n    ...article,\n    tracking_url: `${article.original_url}${separator}${utm}`\n  };\n});\n\nreturn [{ json: { ...data, articles: articlesWithTracking } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        32
+      ],
+      "id": "ed21a70c-641f-4a1b-81ca-ef6b6f42180f",
+      "name": "Generate UTM Links"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst articlesHtml = data.articles.map(a => `\n  <div style=\"margin-bottom:24px;padding:16px;border:1px solid #eee;border-radius:8px;\">\n    <span style=\"background:#eef;padding:4px 8px;border-radius:4px;font-size:12px;\">${a.category}</span>\n    <h3 style=\"margin:8px 0;\">${a.title}</h3>\n    <p style=\"color:#555;\">${a.summary}</p>\n    <p style=\"font-size:12px;color:#999;\">Source : ${a.source}</p>\n    <a href=\"${a.tracking_url}\" style=\"color:#4A5DFF;font-weight:bold;\">Lire l'article →</a>\n  </div>\n`).join('');\n\nconst html = `\n<html>\n<body style=\"font-family:Arial,sans-serif;max-width:600px;margin:auto;\">\n  <h1>Newsletter IA — Semaine du ${data.week}</h1>\n  <p>${data.introduction}</p>\n  ${articlesHtml}\n  <img src=\"https://ton-domaine.com/track/open?nl=${data.newsletter_id}\" width=\"1\" height=\"1\" style=\"display:none;\" />\n  <hr/>\n  <p style=\"font-size:11px;color:#aaa;\">Vous recevez cet email car vous êtes inscrit à la newsletter IA.</p>\n</body>\n</html>`;\n\nreturn [{ json: { ...data, html_content: html } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -128
+      ],
+      "id": "c73d2d6a-62bf-4378-b1eb-865c9b450598",
+      "name": "Generate HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { email: \"test1@example.com\", active_status: true } },\n  { json: { email: \"test2@example.com\", active_status: true } }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        80
+      ],
+      "id": "9447e685-043f-4ebb-abac-3b0fc10b3831",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "fromEmail": "=(={{ $json.email }})",
+        "toEmail": "=(={{ $json.email }})",
+        "subject": "=(={{ $('Generate HTML').item.json.html_content }})",
+        "html": "=(={{ $('Generate HTML').item.json.html_content }})",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        32,
+        80
+      ],
+      "id": "c06c0550-e196-4393-9271-07179d4b0ddd",
+      "name": "Send an Email",
+      "webhookId": "ca4289d8-b96b-4eba-a778-07e350bcc543",
+      "credentials": {
+        "smtp": {
+          "id": "tyRC6hXmKV7quuaD",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start test": {
+      "main": [
+        [
+          {
+            "node": "Mock Articles Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Articles Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "Generate UTM Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate UTM Links": {
+      "main": [
+        [
+          {
+            "node": "Generate HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate HTML": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "95fc165e-8d85-4fe7-8534-ae46754d43a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f0f45f2c31d3030b7c6ab7f88cd6ddd0a6557e67d824baa98a352a2dafbf4a5"
+  },
+  "nodeGroups": [],
+  "id": "XgzREFIqggyHTtnJ",
+  "tags": []
+}
