@@ -8,11 +8,221 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
       "position": [
-        -208,
-        -48
+        -544,
+        -144
       ],
-      "id": "80e6df12-ce91-440c-8876-82baa12a011c",
+      "id": "24d95196-5a98-4bfd-98d2-ac4ee3fa7e3f",
       "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      article_id: \"art_001\",\n      title: \"OpenAI Releases GPT-5.2 with Major Reasoning Improvements\",\n      url: \"https://example.com/openai-gpt-5-2\",\n      source: \"TechCrunch\",\n      published_date: \"2026-09-10\",\n      raw_content: \"OpenAI announced today the release of GPT-5.2, featuring significant improvements in multi-step reasoning and reduced hallucination rates. The model shows a 15% improvement on benchmark tests compared to its predecessor. Early access is being rolled out to enterprise customers this week, with general availability expected next month.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_002\",\n      title: \"Google Unveils Custom AI Chip for Data Centers\",\n      url: \"https://example.com/google-ai-chip\",\n      source: \"The Verge\",\n      published_date: \"2026-09-11\",\n      raw_content: \"Google's new Tensor Processing Unit, the TPU v6, promises 40% better performance per watt compared to previous generations. The chip is designed specifically for training large language models and will be available to Google Cloud customers starting in Q1 next year. Analysts say this move intensifies competition with Nvidia in the AI hardware space.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_003\",\n      title: \"Startup Raises $200M to Build AI Legal Assistant\",\n      url: \"https://example.com/legal-ai-funding\",\n      source: \"VentureBeat\",\n      published_date: \"2026-09-11\",\n      raw_content: \"LegalMind, a startup building AI tools for contract review and legal research, announced a $200 million Series C round led by Sequoia Capital. The company claims its platform can reduce contract review time by 70% for corporate legal teams. This brings LegalMind's total funding to $350 million since its founding in 2023.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_004\",\n      title: \"EU Proposes New AI Transparency Requirements\",\n      url: \"https://example.com/eu-ai-regulation\",\n      source: \"Reuters\",\n      published_date: \"2026-09-09\",\n      raw_content: \"The European Commission has proposed new rules requiring AI companies to disclose training data sources for models deployed within the EU. The proposal, part of an update to the AI Act, would apply to any foundation model with over 1 billion parameters. Industry groups have expressed concern about compliance costs, while consumer advocates have welcomed the move.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_005\",\n      title: \"New Browser Extension Uses AI to Summarize Long Articles\",\n      url: \"https://example.com/ai-browser-extension\",\n      source: \"Product Hunt Blog\",\n      published_date: \"2026-09-08\",\n      raw_content: \"A new Chrome extension called SumUp uses a lightweight language model to generate one-paragraph summaries of any article as you browse. The tool has gained 50,000 users since launching two weeks ago. It's a minor update to an existing productivity tool category, with several similar extensions already on the market.\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        -144
+      ],
+      "id": "b95d9cd5-476c-49fa-a0b5-21c0542690a3",
+      "name": "Mock Article Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "61f406b9-c44a-40e1-bace-c102046f60f1",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "071a464f-8ac2-4498-a44f-c694d8a3413b",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "3be92c8c-25f9-486b-b709-3fec8e8b3917",
+              "leftValue": "={{ $json.raw_content }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -144,
+        -144
+      ],
+      "id": "f6d75edc-d7d6-4da4-ac7a-bd0b6846aec0",
+      "name": "Validate Required Fields"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const keywords = [\n  \"ai\", \"artificial intelligence\", \"machine learning\", \"ml\",\n  \"llm\", \"large language model\", \"gpt\", \"chatgpt\", \"openai\",\n  \"deep learning\", \"neural network\", \"generative ai\", \"genai\",\n  \"anthropic\", \"claude\", \"gemini\", \"copilot\", \"transformer model\"\n];\n\nconst title = ($json.title || \"\").toLowerCase();\nconst content = ($json.raw_content || \"\").toLowerCase();\nconst combinedText = title + \" \" + content;\n\nconst isAIRelated = keywords.some(keyword => combinedText.includes(keyword));\n\nreturn {\n  json: {\n    ...$json,\n    is_ai_related: isAIRelated\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -144
+      ],
+      "id": "ebe8e933-b3f4-4fa6-8f86-a733eee93b37",
+      "name": "Detect AI Keywords"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "63f3f51c-089d-491f-8067-bc5b540d8fb5",
+              "leftValue": "={{ $json.is_ai_related }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        -144
+      ],
+      "id": "55d6b75f-a7a5-4d6d-8f83-f68de8e5a05c",
+      "name": "Filter AI-Related Only"
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizeTitle(title) {\n  return (title || \"\")\n    .toLowerCase()\n    .replace(/[^\\w\\s]/g, \"\")\n    .split(\" \")\n    .filter(w => w.length > 3); // ignore short filler words\n}\n\nfunction similarity(wordsA, wordsB) {\n  const setA = new Set(wordsA);\n  const setB = new Set(wordsB);\n  const intersection = [...setA].filter(w => setB.has(w));\n  const union = new Set([...setA, ...setB]);\n  return intersection.length / union.size; // Jaccard similarity, 0 to 1\n}\n\nconst items = $input.all();\nconst kept = [];\nconst SIMILARITY_THRESHOLD = 0.5;\n\nfor (const item of items) {\n  const wordsA = normalizeTitle(item.json.title);\n  const isDuplicate = kept.some(existing => {\n    const wordsB = normalizeTitle(existing.json.title);\n    return similarity(wordsA, wordsB) >= SIMILARITY_THRESHOLD;\n  });\n\n  if (!isDuplicate) {\n    kept.push(item);\n  }\n}\n\nreturn kept;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -144
+      ],
+      "id": "d04f9a4e-0a51-4e4b-944a-3f116ecc6b68",
+      "name": "Remove Near-Duplicates"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "meta-llama/llama-prompt-guard-2-86m",
+          "mode": "list",
+          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        736,
+        96
+      ],
+      "id": "b65a15ad-1178-4562-89d2-89333dcb7ee4",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "M0O7NLsuWTJCtVoJ",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Summarize this AI news article in exactly 2-3 sentences for a professional newsletter.\nBe factual and neutral in tone. Do not use \"I\" or opinions. Do not repeat the title verbatim.\n\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nContent: {{ $json.raw_content }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        672,
+        -128
+      ],
+      "id": "417d1a00-bdfe-48c2-9e4e-957ce5702cdf",
+      "name": "Summarize Article"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this AI news article into EXACTLY ONE of these categories:\nResearch, Product Launch, Funding & Business, Policy & Regulation, Tools & Applications, Other\n\nRespond with ONLY the category name, nothing else.\n\nTitle: {{ $json.title }}\nContent: {{ $json.raw_content }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1104,
+        -112
+      ],
+      "id": "db068307-f8da-486d-9e29-bbf376baa5a3",
+      "name": "Categorize Article"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "meta-llama/llama-prompt-guard-2-86m",
+          "mode": "list",
+          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1120,
+        128
+      ],
+      "id": "2cca38d2-f75f-45e7-b61e-bc009834299e",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "M0O7NLsuWTJCtVoJ",
+          "name": "OpenAI account"
+        }
+      }
     },
     {
       "parameters": {
@@ -20,8 +230,44 @@
           "assignments": [
             {
               "id": "53fdeb89-02ff-402a-a2e4-7b7bee1c321f",
-              "name": "agent",
-              "value": " News Selection & Summarization Agent",
+              "name": "article_id",
+              "value": " News Selection & Summa{{ $('Remove Near-Duplicates').item.json.article_id }}rization Agent",
+              "type": "string"
+            },
+            {
+              "id": "6224cfc1-dd85-478e-a6f2-95016fb3ec5e",
+              "name": "title",
+              "value": "={{ $('Remove Near-Duplicates').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "5d0092ad-b9de-4327-a426-a1a08b24160a",
+              "name": "source",
+              "value": "={{ $('Remove Near-Duplicates').item.json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "181f0c3e-3415-4f17-a70b-ee7de7a022f6",
+              "name": "url",
+              "value": "={{ $('Remove Near-Duplicates').item.json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "192ee5e2-6d23-4df6-aea9-2311440afcd3",
+              "name": "published_date",
+              "value": "={{ $('Remove Near-Duplicates').item.json.published_date }}",
+              "type": "string"
+            },
+            {
+              "id": "405fbd67-1c45-4ec6-9f66-8551b1771881",
+              "name": "category",
+              "value": "={{ $('Categorize Article').item.json.text.trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "8a91cf51-6afd-4569-89f6-f68ccd7a641d",
+              "name": "summary",
+              "value": "={{ $('Summarize Article').item.json.text.trim() }}",
               "type": "string"
             }
           ]
@@ -31,11 +277,144 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -32,
-        -48
+        1488,
+        -112
       ],
-      "id": "fbe15b9a-dce1-456d-b28c-66cd661ea826",
-      "name": "Edit Fields"
+      "id": "e4f77053-2325-4024-8704-e28e4198627b",
+      "name": "Build Final Template"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "meta-llama/llama-prompt-guard-2-86m",
+          "mode": "list",
+          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1728,
+        240
+      ],
+      "id": "b9225d28-a4ba-4f8b-a062-436cf4f351f7",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "M0O7NLsuWTJCtVoJ",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Rate this AI news article's relevance for a professional AI industry newsletter, on a scale of 0-10.\nConsider: novelty, industry impact, and credibility. Minor/generic updates should score low (0-4).\nMajor announcements, funding, research breakthroughs, or regulation should score higher (7-10).\n\nRespond with ONLY a number, nothing else.\n\nTitle: {{ $json.title }}\nSummary: {{ $json.summary }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1808,
+        -96
+      ],
+      "id": "9a9154e5-c72a-45e1-801b-f76645ad3acc",
+      "name": "Score Relevance",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "75a76ba9-1672-4c95-ad29-eb7dc0906c94",
+              "name": "relevance_score",
+              "value": "={{ Number($json.text.trim()) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2176,
+        -96
+      ],
+      "id": "997b5b26-efb6-4185-9255-7faf1ae6a612",
+      "name": "Attach Relevance Score"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c8d904d5-d46b-4389-b03f-3fdfd9683b64",
+              "leftValue": "={{ $json.relevance_score }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        2400,
+        -96
+      ],
+      "id": "c04a0b20-f3ca-4f0a-af83-8be787abe0c1",
+      "name": "Filter Above Threshold"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "relevance_score",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        -96
+      ],
+      "id": "99680e14-fd56-4f8d-89f5-86a313f247d4",
+      "name": "Sort by Relevance"
+    },
+    {
+      "parameters": {
+        "maxItems": 8
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        2848,
+        -96
+      ],
+      "id": "2f7c7298-1cb4-4435-aebf-f29a1916baae",
+      "name": "Limit to Top 8"
     }
   ],
   "pinData": {},
@@ -44,7 +423,172 @@
       "main": [
         [
           {
-            "node": "Edit Fields",
+            "node": "Mock Article Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Article Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Detect AI Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect AI Keywords": {
+      "main": [
+        [
+          {
+            "node": "Filter AI-Related Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter AI-Related Only": {
+      "main": [
+        [
+          {
+            "node": "Remove Near-Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Near-Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Summarize Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarize Article",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Article": {
+      "main": [
+        [
+          {
+            "node": "Categorize Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Article": {
+      "main": [
+        [
+          {
+            "node": "Build Final Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Categorize Article",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Template": {
+      "main": [
+        [
+          {
+            "node": "Score Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score Relevance",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Relevance": {
+      "main": [
+        [
+          {
+            "node": "Attach Relevance Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Relevance Score": {
+      "main": [
+        [
+          {
+            "node": "Filter Above Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Above Threshold": {
+      "main": [
+        [
+          {
+            "node": "Sort by Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort by Relevance": {
+      "main": [
+        [
+          {
+            "node": "Limit to Top 8",
             "type": "main",
             "index": 0
           }
@@ -57,11 +601,12 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "365337fa-88a5-4e1c-8bc5-ca3bf7b759b6",
+  "versionId": "53eba635-6538-4a03-bce5-188e351ef842",
   "meta": {
-    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d541e8a8b64869eb18f7f6053b7a88669e93b8ec8238f93e8bfc27da95a90cbf"
   },
   "nodeGroups": [],
-  "id": "674zMbRdxExcIr7P",
+  "id": "yjXjgSaQmYLm6zW4",
   "tags": []
 }
