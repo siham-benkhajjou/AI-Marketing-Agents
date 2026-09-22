@@ -8,8 +8,8 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
       "position": [
-        -880,
-        -96
+        -1760,
+        -192
       ],
       "id": "3f69bffa-010e-4c15-84b1-56ca20809a07",
       "name": "When Executed by Another Workflow"
@@ -19,9 +19,27 @@
         "assignments": {
           "assignments": [
             {
-              "id": "6c831f34-849f-4b8a-81f2-7f37759e6e49",
-              "name": "agent",
+              "id": "e0e77a45-d7ba-4ab0-8f05-b719fd009700",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "9e7f3b23-5a2c-4c07-af00-6186c0094160",
+              "name": "agent ",
               "value": "news collection",
+              "type": "string"
+            },
+            {
+              "id": "ed79dbf4-8ff7-4d72-a25a-db666f942edf",
+              "name": "message ",
+              "value": "News Collection Agent executed successfully",
+              "type": "string"
+            },
+            {
+              "id": "4617e12a-7730-47a7-9c10-cc4978d5a449",
+              "name": "articleCount",
+              "value": " 0",
               "type": "string"
             }
           ]
@@ -31,11 +49,215 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -656,
-        -96
+        -608,
+        0
+      ],
+      "id": "cd38542c-14d6-4404-9be5-28ae7b00b911",
+      "name": "Test Output"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6c831f34-849f-4b8a-81f2-7f37759e6e49",
+              "name": "agent",
+              "value": "news collection Agent",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1584,
+        -192
       ],
       "id": "3c400535-058a-4eee-97ec-78e122c7e136",
-      "name": "Edit Fields"
+      "name": "test input"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "sources",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        -192
+      ],
+      "id": "5e7c5037-9a68-42e4-b0d1-698ba839618a",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b9200702-3759-492e-997f-8e06782d78df",
+              "name": "sources",
+              "value": "[   \"https://www.theverge.com/rss/ai-artificial-intelligence/index.xml\", \"https://theaiinsider.tech/feed/\"   ]",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1392,
+        -192
+      ],
+      "id": "f0f08ac4-3378-425d-831e-f830fa326f8f",
+      "name": "Configured Sources"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.sources }}",
+        "options": {
+          "customFields": ""
+        }
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -1488,
+        176
+      ],
+      "id": "cda3dd6d-ae70-4039-bac0-1142a055fce9",
+      "name": "RSS Read",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        320
+      ],
+      "id": "824c0a21-bd5b-44bb-8a89-2f014ab7b890",
+      "name": "Groq",
+      "credentials": {
+        "groqApi": {
+          "id": "TesFEPs99axKtfYI",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"articles\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"title\": { \"type\": \"string\" },\n          \"url\": { \"type\": \"string\" },\n          \"source\": { \"type\": \"string\" },\n          \"published_date\": { \"type\": \"string\" },\n          \"raw_content\": { \"type\": \"string\" }\n        },\n        \"required\": [\"title\", \"url\", \"source\", \"published_date\", \"raw_content\"]\n      }\n    }\n  },\n  \"required\": [\"articles\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -656,
+        320
+      ],
+      "id": "a9809cfc-1c3b-406f-bb14-a6964ca95420",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Normalize this array of raw RSS articles into the required schema:\n{{ JSON.stringify($json)}}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a data normalization engine. You receive a raw JSON array of RSS feed items  that come from different sources with inconsistent field names. Your only job is to  map each item into a clean, consistent schema. You do not summarize, rewrite,  evaluate, or judge relevance. You do not shorten raw_content. You only remap and  clean field names and formatting.  Field mapping rules: - \"source\": the name of the publication/feed (may appear as source_name, creator,    author, publisher, or channel name in the input — use whichever field identifies    WHERE the article came from, not who wrote it personally, unless no publication    name exists) - \"title\": the article headline (may appear as title) - \"url\": the article link (may appear as link, url, guid) - \"published_date\": normalize to ISO 8601 (YYYY-MM-DD) regardless of input format    (pubDate, isoDate, date) - \"raw_content\": the full body/description text (may appear as content,    contentSnippet, content:encoded, description, summary) — preserve the text as-is,    strip only HTML tags, do not summarize or truncate  If a field is missing entirely, use an empty string \"\" — never invent content. Return every article in the input array. Do not skip or filter any."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -800,
+        176
+      ],
+      "id": "89806610-7be3-4656-b2e4-8dd23cac9ec6",
+      "name": "Normalize Article",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "articles",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        0
+      ],
+      "id": "f884617b-6afa-4780-9416-8048c2f942cd",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1696,
+        32
+      ],
+      "id": "6d29e4df-defe-4364-acee-3542934d33f8",
+      "name": "Loop Over Urls"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        16
+      ],
+      "id": "b499fbb9-89a3-4dce-8830-453aa386174e",
+      "name": "Loop Over articles"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1312,
+        176
+      ],
+      "id": "e3f6fcfd-4785-408c-8140-757c8dfa6c92",
+      "name": "Wait 2sec",
+      "webhookId": "b91a7a65-7be8-46e6-9c83-e27445952821"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -432,
+        304
+      ],
+      "id": "ecf1b735-8b06-425c-a6d3-c5b6abffe3e0",
+      "name": "Wait 30sec",
+      "webhookId": "b91a7a65-7be8-46e6-9c83-e27445952821"
     }
   ],
   "pinData": {},
@@ -44,7 +266,158 @@
       "main": [
         [
           {
-            "node": "Edit Fields",
+            "node": "test input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "test input": {
+      "main": [
+        [
+          {
+            "node": "Configured Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configured Sources": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Wait 2sec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Output": {
+      "main": [
+        []
+      ]
+    },
+    "Groq": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Normalize Article",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Normalize Article",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Article": {
+      "main": [
+        [
+          {
+            "node": "Wait 30sec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Test Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Urls": {
+      "main": [
+        [
+          {
+            "node": "Loop Over articles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over articles": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2sec": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30sec": {
+      "main": [
+        [
+          {
+            "node": "Loop Over articles",
             "type": "main",
             "index": 0
           }
@@ -57,8 +430,9 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "6e8801db-c8bd-4a67-ac38-ac4c28395495",
+  "versionId": "b1d84e4b-f57f-4b2f-bde5-00fe27794c69",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
   },
   "nodeGroups": [],
