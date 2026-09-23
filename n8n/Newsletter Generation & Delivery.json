@@ -6,10 +6,10 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -960,
-        -176
+        496,
+        144
       ],
-      "id": "fb6f3a43-5675-4fe0-8ac8-cd5094021fb9",
+      "id": "9714b3a9-3429-408e-9255-78641cbcf46b",
       "name": "Start test"
     },
     {
@@ -21,10 +21,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -832,
-        32
+        624,
+        352
       ],
-      "id": "c5f6eb0a-5b3c-47a0-878b-a33e21e7ef86",
+      "id": "f5ea66c3-de48-4a9e-ba2c-d29b8d81296a",
       "name": "Mock Articles Input"
     },
     {
@@ -34,10 +34,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -672,
-        -176
+        784,
+        144
       ],
-      "id": "8dc52ff6-808f-4841-8131-d30cbf6b2711",
+      "id": "168a876f-050c-477d-9ac9-c0ce0b0da665",
       "name": "Validate Data"
     },
     {
@@ -47,10 +47,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -528,
-        32
+        928,
+        352
       ],
-      "id": "ed21a70c-641f-4a1b-81ca-ef6b6f42180f",
+      "id": "cded2bc6-debe-4ba0-a10a-a3f0a6a99b02",
       "name": "Generate UTM Links"
     },
     {
@@ -60,48 +60,61 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -320,
-        -128
+        1136,
+        192
       ],
-      "id": "c73d2d6a-62bf-4378-b1eb-865c9b450598",
+      "id": "8c56dfa7-dd5a-4d3b-a0cc-9b2680f81f8c",
       "name": "Generate HTML"
     },
     {
       "parameters": {
-        "jsCode": "return [\n  { json: { email: \"test1@example.com\", active_status: true } },\n  { json: { email: \"test2@example.com\", active_status: true } }\n];"
+        "jsCode": "return [\n  { json: { email: \"ouiambenkhajou@gmail.com\", active_status: true } }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -192,
-        80
+        1264,
+        400
       ],
-      "id": "9447e685-043f-4ebb-abac-3b0fc10b3831",
+      "id": "ccfbabb5-d872-4663-92cb-88a5a927555f",
       "name": "Code in JavaScript"
     },
     {
       "parameters": {
-        "fromEmail": "=(={{ $json.email }})",
-        "toEmail": "=(={{ $json.email }})",
-        "subject": "=(={{ $('Generate HTML').item.json.html_content }})",
-        "html": "=(={{ $('Generate HTML').item.json.html_content }})",
+        "fromEmail": "=={{ $json.email }}",
+        "toEmail": "= {{ $json.email }}",
+        "subject": "=Newsletter IA — Semaine du {{ $('Generate HTML').item.json.week }}",
+        "html": "= {{ $('Generate HTML').item.json.html_content }}",
         "options": {}
       },
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        32,
-        80
+        1472,
+        400
       ],
-      "id": "c06c0550-e196-4393-9271-07179d4b0ddd",
+      "id": "68a77c6f-7d5c-484e-b5f7-a1e2af23f3b7",
       "name": "Send an Email",
       "webhookId": "ca4289d8-b96b-4eba-a778-07e350bcc543",
       "credentials": {
         "smtp": {
-          "id": "tyRC6hXmKV7quuaD",
+          "id": "jaVKjtOj5huxU8nP",
           "name": "SMTP account"
         }
       }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        -32
+      ],
+      "id": "bdfe44c1-8dbb-4411-8ef6-3391d7e74982",
+      "name": "When Executed by Another Workflow"
     }
   ],
   "pinData": {},
@@ -171,6 +184,11 @@
           }
         ]
       ]
+    },
+    "Send an Email": {
+      "main": [
+        []
+      ]
     }
   },
   "active": false,
@@ -178,12 +196,12 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "95fc165e-8d85-4fe7-8534-ae46754d43a2",
+  "versionId": "6f95ec63-534c-4343-b679-edfaf8737bb0",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "4f0f45f2c31d3030b7c6ab7f88cd6ddd0a6557e67d824baa98a352a2dafbf4a5"
+    "instanceId": "d541e8a8b64869eb18f7f6053b7a88669e93b8ec8238f93e8bfc27da95a90cbf"
   },
   "nodeGroups": [],
-  "id": "XgzREFIqggyHTtnJ",
+  "id": "V1n04og0atA8DKSE",
   "tags": []
 }
