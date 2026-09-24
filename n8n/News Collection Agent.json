@@ -8,75 +8,11 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
       "position": [
-        -1760,
+        -1984,
         -192
       ],
       "id": "3f69bffa-010e-4c15-84b1-56ca20809a07",
       "name": "When Executed by Another Workflow"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "e0e77a45-d7ba-4ab0-8f05-b719fd009700",
-              "name": "status",
-              "value": "success",
-              "type": "string"
-            },
-            {
-              "id": "9e7f3b23-5a2c-4c07-af00-6186c0094160",
-              "name": "agent ",
-              "value": "news collection",
-              "type": "string"
-            },
-            {
-              "id": "ed79dbf4-8ff7-4d72-a25a-db666f942edf",
-              "name": "message ",
-              "value": "News Collection Agent executed successfully",
-              "type": "string"
-            },
-            {
-              "id": "4617e12a-7730-47a7-9c10-cc4978d5a449",
-              "name": "articleCount",
-              "value": " 0",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        -608,
-        0
-      ],
-      "id": "cd38542c-14d6-4404-9be5-28ae7b00b911",
-      "name": "Test Output"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "6c831f34-849f-4b8a-81f2-7f37759e6e49",
-              "name": "agent",
-              "value": "news collection Agent",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        -1584,
-        -192
-      ],
-      "id": "3c400535-058a-4eee-97ec-78e122c7e136",
-      "name": "test input"
     },
     {
       "parameters": {
@@ -192,21 +128,6 @@
     },
     {
       "parameters": {
-        "aggregate": "aggregateAllItemData",
-        "destinationFieldName": "articles",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.aggregate",
-      "typeVersion": 1,
-      "position": [
-        -784,
-        0
-      ],
-      "id": "f884617b-6afa-4780-9416-8048c2f942cd",
-      "name": "Aggregate"
-    },
-    {
-      "parameters": {
         "options": {}
       },
       "type": "n8n-nodes-base.splitInBatches",
@@ -258,22 +179,75 @@
       "id": "ecf1b735-8b06-425c-a6d3-c5b6abffe3e0",
       "name": "Wait 30sec",
       "webhookId": "b91a7a65-7be8-46e6-9c83-e27445952821"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst seen = new Set();\nconst rows = [];\n\nfor (const item of $input.all()) {\n  const articles = item.json?.output?.articles ?? [];\n  for (const a of articles) {\n    const url = (a.url || '').trim();\n    if (!url || seen.has(url)) continue;   // no URL = no ID, and dedupe inside this run\n    seen.add(url);\n\n    // Postgres DATE rejects '' -> fall back to today if the LLM gave a bad date\n    let date = String(a.published_date || '').slice(0, 10);\n    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) date = new Date().toISOString().slice(0, 10);\n\n    rows.push({\n      json: {\n        title: (a.title || '').trim(),\n        url,\n        source: (a.source || '').trim(),\n        published_date: date,\n        raw_content: (a.raw_content || '').trim(),\n      },\n    });\n  }\n}\n\nreturn rows;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        0
+      ],
+      "id": "5a8c6820-36c7-49e4-93a2-f5cc8b0e329e",
+      "name": "Flatten & Clean Articles"
+    },
+    {
+      "parameters": {
+        "value": "={{ $json.url }}",
+        "dataPropertyName": "article_id"
+      },
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        0
+      ],
+      "id": "8b6c2f8b-aa1b-4420-b89f-707051d54467",
+      "name": "Generate article_id"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO raw_articles (article_id, title, url, source, published_date, raw_content)\nVALUES ($1, $2, $3, $4, $5, $6)\nON CONFLICT (article_id) DO UPDATE SET collected_at = raw_articles.collected_at\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ [ $json.article_id, $json.title, $json.url, $json.source, $json.published_date, $json.raw_content ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "bf9630fb-380e-4f82-bdd3-fe32e84d1200",
+      "name": "Save to raw_articles",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const r = item.json;\n  const d = r.published_date;\n  return {\n    json: {\n      article_id: r.article_id,\n      title: r.title,\n      url: r.url,\n      source: r.source,\n      published_date: d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? '').slice(0, 10),\n      raw_content: r.raw_content,\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "718ebd3a-79e0-48fb-830d-bfdf0771518c",
+      "name": "Output for Agent 2"
     }
   ],
   "pinData": {},
   "connections": {
     "When Executed by Another Workflow": {
-      "main": [
-        [
-          {
-            "node": "test input",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "test input": {
       "main": [
         [
           {
@@ -317,11 +291,6 @@
         ]
       ]
     },
-    "Test Output": {
-      "main": [
-        []
-      ]
-    },
     "Groq": {
       "ai_languageModel": [
         [
@@ -355,17 +324,6 @@
         ]
       ]
     },
-    "Aggregate": {
-      "main": [
-        [
-          {
-            "node": "Test Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Loop Over Urls": {
       "main": [
         [
@@ -388,7 +346,7 @@
       "main": [
         [
           {
-            "node": "Aggregate",
+            "node": "Flatten & Clean Articles",
             "type": "main",
             "index": 0
           }
@@ -423,6 +381,39 @@
           }
         ]
       ]
+    },
+    "Flatten & Clean Articles": {
+      "main": [
+        [
+          {
+            "node": "Generate article_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate article_id": {
+      "main": [
+        [
+          {
+            "node": "Save to raw_articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to raw_articles": {
+      "main": [
+        [
+          {
+            "node": "Output for Agent 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -430,7 +421,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "b1d84e4b-f57f-4b2f-bde5-00fe27794c69",
+  "versionId": "fd819359-9394-4145-be34-3f6465f08d5e",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
