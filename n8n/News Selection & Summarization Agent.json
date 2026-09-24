@@ -8,24 +8,221 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.2,
       "position": [
-        -544,
-        -144
+        9152,
+        3152
       ],
-      "id": "24d95196-5a98-4bfd-98d2-ac4ee3fa7e3f",
+      "id": "e2913bf2-7ff4-46eb-9f98-02b06797cd12",
       "name": "When Executed by Another Workflow"
     },
     {
       "parameters": {
-        "jsCode": "return [\n  {\n    json: {\n      article_id: \"art_001\",\n      title: \"OpenAI Releases GPT-5.2 with Major Reasoning Improvements\",\n      url: \"https://example.com/openai-gpt-5-2\",\n      source: \"TechCrunch\",\n      published_date: \"2026-09-10\",\n      raw_content: \"OpenAI announced today the release of GPT-5.2, featuring significant improvements in multi-step reasoning and reduced hallucination rates. The model shows a 15% improvement on benchmark tests compared to its predecessor. Early access is being rolled out to enterprise customers this week, with general availability expected next month.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_002\",\n      title: \"Google Unveils Custom AI Chip for Data Centers\",\n      url: \"https://example.com/google-ai-chip\",\n      source: \"The Verge\",\n      published_date: \"2026-09-11\",\n      raw_content: \"Google's new Tensor Processing Unit, the TPU v6, promises 40% better performance per watt compared to previous generations. The chip is designed specifically for training large language models and will be available to Google Cloud customers starting in Q1 next year. Analysts say this move intensifies competition with Nvidia in the AI hardware space.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_003\",\n      title: \"Startup Raises $200M to Build AI Legal Assistant\",\n      url: \"https://example.com/legal-ai-funding\",\n      source: \"VentureBeat\",\n      published_date: \"2026-09-11\",\n      raw_content: \"LegalMind, a startup building AI tools for contract review and legal research, announced a $200 million Series C round led by Sequoia Capital. The company claims its platform can reduce contract review time by 70% for corporate legal teams. This brings LegalMind's total funding to $350 million since its founding in 2023.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_004\",\n      title: \"EU Proposes New AI Transparency Requirements\",\n      url: \"https://example.com/eu-ai-regulation\",\n      source: \"Reuters\",\n      published_date: \"2026-09-09\",\n      raw_content: \"The European Commission has proposed new rules requiring AI companies to disclose training data sources for models deployed within the EU. The proposal, part of an update to the AI Act, would apply to any foundation model with over 1 billion parameters. Industry groups have expressed concern about compliance costs, while consumer advocates have welcomed the move.\"\n    }\n  },\n  {\n    json: {\n      article_id: \"art_005\",\n      title: \"New Browser Extension Uses AI to Summarize Long Articles\",\n      url: \"https://example.com/ai-browser-extension\",\n      source: \"Product Hunt Blog\",\n      published_date: \"2026-09-08\",\n      raw_content: \"A new Chrome extension called SumUp uses a lightweight language model to generate one-paragraph summaries of any article as you browse. The tool has gained 50,000 users since launching two weeks ago. It's a minor update to an existing productivity tool category, with several similar extensions already on the market.\"\n    }\n  }\n];"
+        "jsCode": "// Central configuration for this run - change values here only.\nconst now = $now.setZone('Africa/Casablanca');\nconst monday = now.startOf('week');\n\nreturn [{\n  json: {\n    newsletter_week: monday.toISODate(),                                   // e.g. 2026-09-21\n    newsletter_id: `nl_${now.weekYear}_w${String(now.weekNumber).padStart(2, '0')}`, // e.g. nl_2026_w39\n    lookback_days: 7,        // only consider articles collected in the last N days\n    max_articles: 40,        // safety cap on LLM calls per run\n    min_relevance: 7,        // minimum score (0-10) to be selected\n    top_n: 8,                // number of articles in the newsletter\n    llm_wait_seconds: 15,    // pause between LLM calls (Groq rate limits)\n    summary_language: 'French',\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -336,
-        -144
+        9392,
+        3152
       ],
-      "id": "b95d9cd5-476c-49fa-a0b5-21c0542690a3",
-      "name": "Mock Article Data"
+      "id": "63e46bdb-4932-4cce-8e4f-7b811dfb26be",
+      "name": "Run Config"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT r.article_id,\n       r.title,\n       r.url,\n       r.source,\n       to_char(r.published_date, 'YYYY-MM-DD') AS published_date,\n       r.raw_content\nFROM raw_articles r\nLEFT JOIN processed_articles p ON p.article_id = r.article_id\nWHERE p.article_id IS NULL\n  AND r.collected_at >= NOW() - make_interval(days => $1::int)\nORDER BY r.published_date DESC NULLS LAST\nLIMIT $2::int;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lookback_days, $json.max_articles ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        9600,
+        3152
+      ],
+      "id": "a3e31b07-1a29-46f4-bfdc-a604a45450bb",
+      "name": "Fetch Unprocessed Articles",
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Instead of DROPPING articles, we TAG them with a rejection reason.\n// Rejected articles are saved too, so they are never re-processed next run.\nfunction normalizeTitle(title) {\n  return (title || \"\")\n    .toLowerCase()\n    .replace(/[^\\w\\s]/g, \"\")\n    .split(/\\s+/)\n    .filter(w => w.length > 3);\n}\n\nfunction similarity(a, b) {\n  const setA = new Set(a), setB = new Set(b);\n  const union = new Set([...setA, ...setB]);\n  if (union.size === 0) return 0;\n  const inter = [...setA].filter(w => setB.has(w));\n  return inter.length / union.size; // Jaccard 0..1\n}\n\nconst SIMILARITY_THRESHOLD = 0.5;\nconst kept = [];\n\nreturn $input.all().map(item => {\n  const j = item.json;\n  let rejection_reason = \"\";\n\n  if (!j.is_ai_related) {\n    rejection_reason = \"rejected_not_ai\";\n  } else {\n    const words = normalizeTitle(j.title);\n    const isDuplicate = kept.some(k => similarity(words, k) >= SIMILARITY_THRESHOLD);\n    if (isDuplicate) rejection_reason = \"rejected_duplicate\";\n    else kept.push(words);\n  }\n\n  return { json: { ...j, rejection_reason } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10224,
+        3152
+      ],
+      "id": "685cfaa3-c8dd-428f-a907-1555e1f3813b",
+      "name": "Tag Duplicates & Non-AI"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fd6394ac-5bdd-43c8-8763-2d17fae55940",
+              "leftValue": "={{ $json.rejection_reason }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10432,
+        3152
+      ],
+      "id": "84706734-c236-4225-9d60-f44e1c5e2915",
+      "name": "Is Rejected?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO processed_articles\n  (article_id, title, source, url, published_date, category, summary, relevance_score, status, newsletter_week)\nVALUES ($1, $2, $3, $4, NULLIF($5, '')::date, NULL, NULL, NULL, $6, $7::date)\nON CONFLICT (article_id) DO UPDATE SET\n  status = EXCLUDED.status,\n  newsletter_week = EXCLUDED.newsletter_week,\n  processed_at = NOW()\nRETURNING article_id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.article_id, $json.title, $json.source, $json.url, $json.published_date || '', $json.rejection_reason, $('Run Config').first().json.newsletter_week ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        11024,
+        2896
+      ],
+      "id": "c7e754d2-18cd-4da5-b541-e7f318541235",
+      "name": "Save Rejected",
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        10688,
+        3248
+      ],
+      "id": "adb7a0ee-e2ad-4605-bbff-9b9672eae80c",
+      "name": "Loop Over Articles"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this AI news article and return:\n\n1. \"summary\": exactly 2-3 sentences in {{ $('Run Config').first().json.summary_language }}, factual and neutral, no \"I\", no opinions, do not repeat the title verbatim.\n2. \"category\": EXACTLY ONE of: Research, Product Launch, Funding & Business, Policy & Regulation, Tools & Applications, Other\n3. \"relevance_score\": a number from 0 to 10 for a professional AI industry newsletter.\n   Consider novelty, industry impact and credibility.\n   Minor/generic updates: 0-4. Notable news: 5-6. Major announcements, funding, research breakthroughs or regulation: 7-10.\n\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nContent: {{ ($json.raw_content || '').slice(0, 4000) }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are the editor of a professional AI industry newsletter. You analyze one news article and return structured data only. Be factual and neutral. Never invent facts that are not in the article."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        10928,
+        3408
+      ],
+      "id": "ecaae70b-07ce-4641-b05a-04d5fc17fb1d",
+      "name": "Analyze Article",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        10896,
+        3616
+      ],
+      "id": "3693bf64-5c39-4b0f-bafd-f4866354ba67",
+      "name": "Groq",
+      "credentials": {
+        "groqApi": {
+          "id": "TesFEPs99axKtfYI",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"summary\": {\n      \"type\": \"string\"\n    },\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Research\",\n        \"Product Launch\",\n        \"Funding & Business\",\n        \"Policy & Regulation\",\n        \"Tools & Applications\",\n        \"Other\"\n      ]\n    },\n    \"relevance_score\": {\n      \"type\": \"number\",\n      \"minimum\": 0,\n      \"maximum\": 10\n    }\n  },\n  \"required\": [\n    \"summary\",\n    \"category\",\n    \"relevance_score\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        11056,
+        3616
+      ],
+      "id": "de0d90ef-8138-45d0-b477-3de863d78b24",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Merge the original article with the LLM result.\n// If the LLM failed, llm_ok = false -> the article is NOT saved,\n// so it will be retried automatically on the next run.\nconst a = $('Loop Over Articles').item.json;\nconst o = $json.output || {};\n\nconst CATEGORIES = [\"Research\", \"Product Launch\", \"Funding & Business\",\n                    \"Policy & Regulation\", \"Tools & Applications\", \"Other\"];\n\nlet score = Number(o.relevance_score);\nconst llm_ok = typeof o.summary === \"string\" && o.summary.trim() !== \"\" && Number.isFinite(score);\nif (Number.isFinite(score)) score = Math.min(10, Math.max(0, score));\n\nreturn {\n  json: {\n    article_id: a.article_id,\n    title: a.title,\n    source: a.source,\n    url: a.url,\n    published_date: a.published_date || \"\",\n    category: CATEGORIES.includes(o.category) ? o.category : \"Other\",\n    summary: (o.summary || \"\").trim(),\n    relevance_score: llm_ok ? score : null,\n    llm_ok,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11248,
+        3408
+      ],
+      "id": "fe03d455-0b70-49f9-8434-41d552626e7d",
+      "name": "Build Scored Article"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Run Config').first().json.llm_wait_seconds }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        11456,
+        3408
+      ],
+      "id": "fdd86cf1-fc3d-48b7-899f-efe3d46245b6",
+      "name": "Wait (rate limit)",
+      "webhookId": "5e16a5c9-faf0-40b6-a26f-723cafffe585"
     },
     {
       "parameters": {
@@ -38,7 +235,113 @@
           },
           "conditions": [
             {
-              "id": "61f406b9-c44a-40e1-bace-c102046f60f1",
+              "id": "9c560949-230f-433d-b31c-c8595568860a",
+              "leftValue": "={{ $json.llm_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        10960,
+        3120
+      ],
+      "id": "87e4cf05-a09f-4c39-ab14-df873663ac5f",
+      "name": "LLM Succeeded"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO processed_articles\n  (article_id, title, source, url, published_date, category, summary, relevance_score, status, newsletter_week)\nVALUES ($1, $2, $3, $4, NULLIF($5, '')::date, $6, $7, $8, 'scored', $9::date)\nON CONFLICT (article_id) DO UPDATE SET\n  category        = EXCLUDED.category,\n  summary         = EXCLUDED.summary,\n  relevance_score = EXCLUDED.relevance_score,\n  status          = 'scored',\n  newsletter_week = EXCLUDED.newsletter_week,\n  processed_at    = NOW()\nRETURNING article_id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.article_id, $json.title, $json.source, $json.url, $json.published_date, $json.category, $json.summary, $json.relevance_score, $('Run Config').first().json.newsletter_week ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        11184,
+        3120
+      ],
+      "id": "32208fae-7ed2-47aa-b155-1314a9d6d728",
+      "name": "Save Scored",
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        11456,
+        3008
+      ],
+      "id": "6a1d4d18-4267-454e-a661-4f3f4030dde5",
+      "name": "Wait for Both Branches"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Rank all articles of this newsletter week and mark the top N as 'selected'.\n-- Re-running the workflow in the same week re-ranks cleanly (idempotent).\nWITH ranked AS (\n  SELECT article_id\n  FROM processed_articles\n  WHERE newsletter_week = $1::date\n    AND status IN ('scored', 'selected')\n    AND relevance_score >= $2::numeric\n  ORDER BY relevance_score DESC, published_date DESC NULLS LAST\n  LIMIT $3::int\n)\nUPDATE processed_articles p\nSET status = CASE WHEN p.article_id IN (SELECT article_id FROM ranked)\n                  THEN 'selected' ELSE 'scored' END\nWHERE p.newsletter_week = $1::date\n  AND p.status IN ('scored', 'selected')\nRETURNING p.article_id, p.title, p.source, p.url,\n          to_char(p.published_date, 'YYYY-MM-DD') AS published_date,\n          p.category, p.summary, p.relevance_score, p.status;",
+        "options": {
+          "queryReplacement": "={{ [ $('Run Config').first().json.newsletter_week, $('Run Config').first().json.min_relevance, $('Run Config').first().json.top_n ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        11680,
+        3008
+      ],
+      "id": "933a2da3-0a83-4d96-9952-f2b22e4ab762",
+      "name": "Select Top Articles",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Contract expected by Agent 3 (Newsletter Generation & Delivery).\nconst cfg = $('Run Config').first().json;\n\nconst selected = $input.all()\n  .map(i => i.json)\n  .filter(r => r.article_id && r.status === 'selected')\n  .sort((a, b) => Number(b.relevance_score) - Number(a.relevance_score));\n\nreturn [{\n  json: {\n    newsletter_id: cfg.newsletter_id,\n    week: cfg.newsletter_week,\n    introduction: \"\",              \n    article_count: selected.length,\n    articles: selected.map(r => ({\n      article_id: r.article_id,\n      title: r.title,\n      source: r.source,\n      original_url: r.url,\n      category: r.category,\n      summary: r.summary,\n      relevance_score: Number(r.relevance_score),\n      publication_date: r.published_date || \"\",\n    })),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11904,
+        3008
+      ],
+      "id": "887e2c3a-7534-4a01-a098-549f348936ca",
+      "name": "Output for Agent 3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9d7394dd-fae3-480e-bcfc-e7794d742516",
               "leftValue": "={{ $json.title }}",
               "rightValue": "",
               "operator": {
@@ -48,7 +351,7 @@
               }
             },
             {
-              "id": "071a464f-8ac2-4498-a44f-c694d8a3413b",
+              "id": "86471a0a-f76d-4d06-b4bc-0974f8c19ce1",
               "leftValue": "={{ $json.url }}",
               "rightValue": "",
               "operator": {
@@ -58,7 +361,7 @@
               }
             },
             {
-              "id": "3be92c8c-25f9-486b-b709-3fec8e8b3917",
+              "id": "1e122d00-4fd1-4baa-a75e-a75c9ab64c7d",
               "leftValue": "={{ $json.raw_content }}",
               "rightValue": "",
               "operator": {
@@ -75,346 +378,25 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        -144,
-        -144
+        9808,
+        3152
       ],
-      "id": "f6d75edc-d7d6-4da4-ac7a-bd0b6846aec0",
-      "name": "Validate Required Fields"
+      "id": "f4fe0dfa-84ba-448c-80a8-5c87e8d5c290",
+      "name": "Validate Required Fields1"
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const keywords = [\n  \"ai\", \"artificial intelligence\", \"machine learning\", \"ml\",\n  \"llm\", \"large language model\", \"gpt\", \"chatgpt\", \"openai\",\n  \"deep learning\", \"neural network\", \"generative ai\", \"genai\",\n  \"anthropic\", \"claude\", \"gemini\", \"copilot\", \"transformer model\"\n];\n\nconst title = ($json.title || \"\").toLowerCase();\nconst content = ($json.raw_content || \"\").toLowerCase();\nconst combinedText = title + \" \" + content;\n\nconst isAIRelated = keywords.some(keyword => combinedText.includes(keyword));\n\nreturn {\n  json: {\n    ...$json,\n    is_ai_related: isAIRelated\n  }\n};"
+        "jsCode": "const keywords = [\n  \"ai\", \"artificial intelligence\", \"machine learning\", \"ml\",\n  \"llm\", \"large language model\", \"gpt\", \"chatgpt\", \"openai\",\n  \"deep learning\", \"neural network\", \"generative ai\", \"genai\",\n  \"anthropic\", \"claude\", \"gemini\", \"copilot\", \"transformer model\"\n];\n\nconst text = `${$json.title || \"\"} ${$json.raw_content || \"\"}`.toLowerCase();\nconst escape = s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\");\n\n// Whole-word match: \"ai\" must not match \"said\", \"email\", \"again\"...\nconst isAIRelated = keywords.some(k => new RegExp(`\\\\b${escape(k)}\\\\b`).test(text));\n\nreturn { json: { ...$json, is_ai_related: isAIRelated } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        32,
-        -144
+        10016,
+        3152
       ],
-      "id": "ebe8e933-b3f4-4fa6-8f86-a733eee93b37",
-      "name": "Detect AI Keywords"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "63f3f51c-089d-491f-8067-bc5b540d8fb5",
-              "leftValue": "={{ $json.is_ai_related }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2.3,
-      "position": [
-        224,
-        -144
-      ],
-      "id": "55d6b75f-a7a5-4d6d-8f83-f68de8e5a05c",
-      "name": "Filter AI-Related Only"
-    },
-    {
-      "parameters": {
-        "jsCode": "function normalizeTitle(title) {\n  return (title || \"\")\n    .toLowerCase()\n    .replace(/[^\\w\\s]/g, \"\")\n    .split(\" \")\n    .filter(w => w.length > 3); // ignore short filler words\n}\n\nfunction similarity(wordsA, wordsB) {\n  const setA = new Set(wordsA);\n  const setB = new Set(wordsB);\n  const intersection = [...setA].filter(w => setB.has(w));\n  const union = new Set([...setA, ...setB]);\n  return intersection.length / union.size; // Jaccard similarity, 0 to 1\n}\n\nconst items = $input.all();\nconst kept = [];\nconst SIMILARITY_THRESHOLD = 0.5;\n\nfor (const item of items) {\n  const wordsA = normalizeTitle(item.json.title);\n  const isDuplicate = kept.some(existing => {\n    const wordsB = normalizeTitle(existing.json.title);\n    return similarity(wordsA, wordsB) >= SIMILARITY_THRESHOLD;\n  });\n\n  if (!isDuplicate) {\n    kept.push(item);\n  }\n}\n\nreturn kept;"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        448,
-        -144
-      ],
-      "id": "d04f9a4e-0a51-4e4b-944a-3f116ecc6b68",
-      "name": "Remove Near-Duplicates"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "meta-llama/llama-prompt-guard-2-86m",
-          "mode": "list",
-          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        736,
-        96
-      ],
-      "id": "b65a15ad-1178-4562-89d2-89333dcb7ee4",
-      "name": "OpenAI Chat Model",
-      "credentials": {
-        "openAiApi": {
-          "id": "M0O7NLsuWTJCtVoJ",
-          "name": "OpenAI account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=Summarize this AI news article in exactly 2-3 sentences for a professional newsletter.\nBe factual and neutral in tone. Do not use \"I\" or opinions. Do not repeat the title verbatim.\n\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nContent: {{ $json.raw_content }}",
-        "batching": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.9,
-      "position": [
-        672,
-        -128
-      ],
-      "id": "417d1a00-bdfe-48c2-9e4e-957ce5702cdf",
-      "name": "Summarize Article"
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=Classify this AI news article into EXACTLY ONE of these categories:\nResearch, Product Launch, Funding & Business, Policy & Regulation, Tools & Applications, Other\n\nRespond with ONLY the category name, nothing else.\n\nTitle: {{ $json.title }}\nContent: {{ $json.raw_content }}",
-        "batching": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.9,
-      "position": [
-        1104,
-        -112
-      ],
-      "id": "db068307-f8da-486d-9e29-bbf376baa5a3",
-      "name": "Categorize Article"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "meta-llama/llama-prompt-guard-2-86m",
-          "mode": "list",
-          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1120,
-        128
-      ],
-      "id": "2cca38d2-f75f-45e7-b61e-bc009834299e",
-      "name": "OpenAI Chat Model1",
-      "credentials": {
-        "openAiApi": {
-          "id": "M0O7NLsuWTJCtVoJ",
-          "name": "OpenAI account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "53fdeb89-02ff-402a-a2e4-7b7bee1c321f",
-              "name": "article_id",
-              "value": " News Selection & Summa{{ $('Remove Near-Duplicates').item.json.article_id }}rization Agent",
-              "type": "string"
-            },
-            {
-              "id": "6224cfc1-dd85-478e-a6f2-95016fb3ec5e",
-              "name": "title",
-              "value": "={{ $('Remove Near-Duplicates').item.json.title }}",
-              "type": "string"
-            },
-            {
-              "id": "5d0092ad-b9de-4327-a426-a1a08b24160a",
-              "name": "source",
-              "value": "={{ $('Remove Near-Duplicates').item.json.source }}",
-              "type": "string"
-            },
-            {
-              "id": "181f0c3e-3415-4f17-a70b-ee7de7a022f6",
-              "name": "url",
-              "value": "={{ $('Remove Near-Duplicates').item.json.url }}",
-              "type": "string"
-            },
-            {
-              "id": "192ee5e2-6d23-4df6-aea9-2311440afcd3",
-              "name": "published_date",
-              "value": "={{ $('Remove Near-Duplicates').item.json.published_date }}",
-              "type": "string"
-            },
-            {
-              "id": "405fbd67-1c45-4ec6-9f66-8551b1771881",
-              "name": "category",
-              "value": "={{ $('Categorize Article').item.json.text.trim() }}",
-              "type": "string"
-            },
-            {
-              "id": "8a91cf51-6afd-4569-89f6-f68ccd7a641d",
-              "name": "summary",
-              "value": "={{ $('Summarize Article').item.json.text.trim() }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        1488,
-        -112
-      ],
-      "id": "e4f77053-2325-4024-8704-e28e4198627b",
-      "name": "Build Final Template"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "meta-llama/llama-prompt-guard-2-86m",
-          "mode": "list",
-          "cachedResultName": "meta-llama/llama-prompt-guard-2-86m"
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1728,
-        240
-      ],
-      "id": "b9225d28-a4ba-4f8b-a062-436cf4f351f7",
-      "name": "OpenAI Chat Model2",
-      "credentials": {
-        "openAiApi": {
-          "id": "M0O7NLsuWTJCtVoJ",
-          "name": "OpenAI account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=Rate this AI news article's relevance for a professional AI industry newsletter, on a scale of 0-10.\nConsider: novelty, industry impact, and credibility. Minor/generic updates should score low (0-4).\nMajor announcements, funding, research breakthroughs, or regulation should score higher (7-10).\n\nRespond with ONLY a number, nothing else.\n\nTitle: {{ $json.title }}\nSummary: {{ $json.summary }}",
-        "batching": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.9,
-      "position": [
-        1808,
-        -96
-      ],
-      "id": "9a9154e5-c72a-45e1-801b-f76645ad3acc",
-      "name": "Score Relevance",
-      "disabled": true
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "75a76ba9-1672-4c95-ad29-eb7dc0906c94",
-              "name": "relevance_score",
-              "value": "={{ Number($json.text.trim()) }}",
-              "type": "number"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        2176,
-        -96
-      ],
-      "id": "997b5b26-efb6-4185-9255-7faf1ae6a612",
-      "name": "Attach Relevance Score"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "c8d904d5-d46b-4389-b03f-3fdfd9683b64",
-              "leftValue": "={{ $json.relevance_score }}",
-              "rightValue": 7,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2.3,
-      "position": [
-        2400,
-        -96
-      ],
-      "id": "c04a0b20-f3ca-4f0a-af83-8be787abe0c1",
-      "name": "Filter Above Threshold"
-    },
-    {
-      "parameters": {
-        "sortFieldsUi": {
-          "sortField": [
-            {
-              "fieldName": "relevance_score",
-              "order": "descending"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.sort",
-      "typeVersion": 1,
-      "position": [
-        2624,
-        -96
-      ],
-      "id": "99680e14-fd56-4f8d-89f5-86a313f247d4",
-      "name": "Sort by Relevance"
-    },
-    {
-      "parameters": {
-        "maxItems": 8
-      },
-      "type": "n8n-nodes-base.limit",
-      "typeVersion": 1,
-      "position": [
-        2848,
-        -96
-      ],
-      "id": "2f7c7298-1cb4-4435-aebf-f29a1916baae",
-      "name": "Limit to Top 8"
+      "id": "6637dbbb-ba4b-4175-ba3a-5320322caf99",
+      "name": "Detect AI Keywords1"
     }
   ],
   "pinData": {},
@@ -423,172 +405,208 @@
       "main": [
         [
           {
-            "node": "Mock Article Data",
+            "node": "Run Config",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Mock Article Data": {
+    "Run Config": {
       "main": [
         [
           {
-            "node": "Validate Required Fields",
+            "node": "Fetch Unprocessed Articles",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Validate Required Fields": {
+    "Fetch Unprocessed Articles": {
       "main": [
         [
           {
-            "node": "Detect AI Keywords",
+            "node": "Validate Required Fields1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Detect AI Keywords": {
+    "Tag Duplicates & Non-AI": {
       "main": [
         [
           {
-            "node": "Filter AI-Related Only",
+            "node": "Is Rejected?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter AI-Related Only": {
+    "Is Rejected?": {
       "main": [
         [
           {
-            "node": "Remove Near-Duplicates",
+            "node": "Save Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Articles",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Remove Near-Duplicates": {
+    "Loop Over Articles": {
       "main": [
         [
           {
-            "node": "Summarize Article",
+            "node": "LLM Succeeded",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze Article",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Chat Model": {
+    "Analyze Article": {
+      "main": [
+        [
+          {
+            "node": "Build Scored Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq": {
       "ai_languageModel": [
         [
           {
-            "node": "Summarize Article",
+            "node": "Analyze Article",
             "type": "ai_languageModel",
             "index": 0
           }
         ]
       ]
     },
-    "Summarize Article": {
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Analyze Article",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scored Article": {
       "main": [
         [
           {
-            "node": "Categorize Article",
+            "node": "Wait (rate limit)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Categorize Article": {
+    "Wait (rate limit)": {
       "main": [
         [
           {
-            "node": "Build Final Template",
+            "node": "Loop Over Articles",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Chat Model1": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Categorize Article",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Final Template": {
+    "LLM Succeeded": {
       "main": [
         [
           {
-            "node": "Score Relevance",
+            "node": "Save Scored",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Chat Model2": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Score Relevance",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Score Relevance": {
+    "Save Rejected": {
       "main": [
         [
           {
-            "node": "Attach Relevance Score",
+            "node": "Wait for Both Branches",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Attach Relevance Score": {
+    "Save Scored": {
       "main": [
         [
           {
-            "node": "Filter Above Threshold",
+            "node": "Wait for Both Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Both Branches": {
+      "main": [
+        [
+          {
+            "node": "Select Top Articles",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Filter Above Threshold": {
+    "Select Top Articles": {
       "main": [
         [
           {
-            "node": "Sort by Relevance",
+            "node": "Output for Agent 3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Sort by Relevance": {
+    "Validate Required Fields1": {
       "main": [
         [
           {
-            "node": "Limit to Top 8",
+            "node": "Detect AI Keywords1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect AI Keywords1": {
+      "main": [
+        [
+          {
+            "node": "Tag Duplicates & Non-AI",
             "type": "main",
             "index": 0
           }
@@ -601,12 +619,12 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "53eba635-6538-4a03-bce5-188e351ef842",
+  "versionId": "9d3cd908-8926-4177-8e15-0fb2ec3d38bc",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "d541e8a8b64869eb18f7f6053b7a88669e93b8ec8238f93e8bfc27da95a90cbf"
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
   },
   "nodeGroups": [],
-  "id": "yjXjgSaQmYLm6zW4",
+  "id": "674zMbRdxExcIr7P",
   "tags": []
 }
