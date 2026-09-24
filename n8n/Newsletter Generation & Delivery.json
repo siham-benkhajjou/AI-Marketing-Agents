@@ -2,216 +2,901 @@
   "name": "Newsletter Generation & Delivery",
   "nodes": [
     {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        4096,
+        928
+      ],
+      "id": "70397ab8-e2fa-46eb-90cf-be378aef3ada",
+      "name": "When Executed by Another Workflow"
+    },
+    {
       "parameters": {},
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        4096,
+        1136
       ],
-      "id": "92ae15f2-0fd0-4e99-822f-2301c6dcd655",
-      "name": "Start test"
+      "id": "8beae2ac-0657-4565-9e84-cc1dd008bd8f",
+      "name": "Manual Test"
     },
     {
       "parameters": {
-        "mode": "raw",
-        "jsonOutput": "{\n  \"newsletter_id\": \"nl_2026_w37\",\n  \"week\": \"2026-09-08\",\n  \"introduction\": \"Cette semaine : percée en RL, nouveau modèle open-source, et débat sur la régulation IA.\",\n  \"articles\": [\n    {\n      \"article_id\": \"art_001\",\n      \"title\": \"OpenAI lance un nouveau raisonneur RL\",\n      \"source\": \"TechCrunch\",\n      \"original_url\": \"https://techcrunch.com/openai-rl-model\",\n      \"category\": \"Modèles\",\n      \"summary\": \"OpenAI a publié un modèle qui améliore le raisonnement via apprentissage par renforcement.\",\n      \"publication_date\": \"2026-09-07\"\n    },\n    {\n      \"article_id\": \"art_002\",\n      \"title\": \"L'UE avance sur la régulation IA\",\n      \"source\": \"The Verge\",\n      \"original_url\": \"https://theverge.com/eu-ai-act-update\",\n      \"category\": \"Régulation\",\n      \"summary\": \"Le Parlement européen a voté de nouvelles mesures encadrant les modèles à haut risque.\",\n      \"publication_date\": \"2026-09-06\"\n    }\n  ]\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        128,
-        208
-      ],
-      "id": "91e55486-d262-40a7-a6b0-8e50f4ad3d25",
-      "name": "Mock Articles Input"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst data = $input.first().json;\n\nif (!data.articles || data.articles.length === 0) {\n  throw new Error(\"Aucun article reçu, arrêt du workflow.\");\n}\n\nconst cleanArticles = data.articles.map(a => ({\n  article_id: a.article_id,\n  title: a.title || \"Sans titre\",\n  source: a.source || \"Source inconnue\",\n  original_url: a.original_url,\n  category: a.category || \"Général\",\n  summary: a.summary || \"\",\n  publication_date: a.publication_date\n}));\n\nreturn [{ json: { ...data, articles: cleanArticles } }];"
+        "jsCode": "// ================= CENTRAL CONFIGURATION =================\n// TEST_MODE = true  -> sends ONLY to test_recipients, adds a \"TEST\" banner,\n//                      and does NOT mark the articles as sent. Always test first!\nconst TEST_MODE = true;\n\nconst tz = 'Africa/Casablanca';\nconst input = $input.first()?.json ?? {};\n// Week comes from Agent 2 when called by the orchestrator, else the current week\nconst week = input.week || $now.setZone(tz).startOf('week').toISODate();\nconst wk = DateTime.fromISO(week, { zone: tz });\nconst baseId = `nl_${wk.weekYear}_w${String(wk.weekNumber).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    test_mode: TEST_MODE,\n    test_recipients: [\n      { email: 'ouiambenkhajou@gmail.com', first_name: 'Ouiam' },   // <-- your test emails\n    ],\n    newsletter_week: week,\n    newsletter_id: TEST_MODE ? `${baseId}_test` : baseId,\n    issue_number: wk.weekNumber,\n    week_label: wk.setLocale('fr').toFormat('d LLLL yyyy'),        // \"21 septembre 2026\"\n    brand_name: 'AI Foundry Weekly',\n\n    // ---- Recipients (used when TEST_MODE = false) ----\n    // 'excel' -> reads the Excel file below   |   'list' -> uses recipients_list\n    recipients_source: 'excel',\n    recipients_file: '/files/recipients/ai_foundry_recipients.xlsx',\n    recipients_list: [\n      // { email: 'prenom.nom@nttdata.com', first_name: 'Prénom' },\n    ],\n\n    // ---- Gmail sender (must be the Gmail account of the SMTP credential) ----\n    sender_email: 'benkhajjousiham@gmail.com',\n    sender_name: 'AI Foundry Weekly',\n\n    // ---- Assets ----\n    logo_path: '/files/assets/ntt-data-logo.png',\n\n    // ---- Optional (leave empty until the tracking/unsubscribe webhooks exist) ----\n    unsubscribe_base_url: '',\n    tracking_base_url: '',\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        288,
-        0
+        4320,
+        1040
       ],
-      "id": "98e2ed0b-c467-4b8a-a085-989b36094b9d",
-      "name": "Validate Data"
+      "id": "980f6a7e-855e-4639-8f45-eb565086541e",
+      "name": "Run Config"
     },
     {
       "parameters": {
-        "jsCode": "return [\n  { json: { email: \"ouiambenkhajou@gmail.com\", active_status: true } }\n\n];"
+        "operation": "executeQuery",
+        "query": "SELECT article_id, title, source, url,\n       to_char(published_date, 'YYYY-MM-DD') AS published_date,\n       category, summary, relevance_score\nFROM processed_articles\nWHERE newsletter_week = $1::date\n  AND status = 'selected'\nORDER BY relevance_score DESC, published_date DESC NULLS LAST;",
+        "options": {
+          "queryReplacement": "={{ [ $json.newsletter_week ] }}"
+        }
       },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
-        768,
-        256
+        4544,
+        1040
       ],
-      "id": "3b2f88b6-e99e-4135-a1b5-e0fa32a92c60",
-      "name": "Code in JavaScript"
-    },
-    {
-      "parameters": {
-        "fromEmail": "mohammed.zelmati25@gmail.com",
-        "toEmail": "={{ $json.email }}",
-        "subject": "=   Newsletter IA — Semaine du {{ $('Generate UTM Links').first().json.week }}",
-        "html": "=   {{ $('Clean HTML Output').first().json.html_content }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [
-        992,
-        256
-      ],
-      "id": "520185ed-4707-4a12-9cc0-88c41e914069",
-      "name": "Send an Email",
-      "webhookId": "ca4289d8-b96b-4eba-a778-07e350bcc543",
+      "id": "0ba2fd83-7cc4-4bd4-b178-36e13041a77c",
+      "name": "Fetch Selected Articles",
+      "alwaysOutputData": true,
       "credentials": {
-        "smtp": {
-          "id": "tyRC6hXmKV7quuaD",
-          "name": "SMTP account"
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst newsletterId = data.newsletter_id;\n\nconst articlesWithTracking = data.articles.map(article => {\n  const utm = `utm_source=newsletter&utm_medium=email&utm_campaign=${newsletterId}&utm_content=${article.article_id}`;\n  const separator = article.original_url.includes('?') ? '&' : '?';\n  return {\n    ...article,\n    tracking_url: `${article.original_url}${separator}${utm}`\n  };\n});\n\nreturn [{ json: { ...data, articles: articlesWithTracking } }];"
+        "jsCode": "// Validate + build tracking links (replaces the old mock + Validate + UTM nodes)\nconst cfg = $('Run Config').first().json;\nconst rows = $input.all().map(i => i.json).filter(r => r.article_id);\n\nif (!rows.length) {\n  throw new Error(`Aucun article 'selected' pour la semaine ${cfg.newsletter_week}. ` +\n                  `Lancez l'Agent 2 d'abord, ou la newsletter a déjà été envoyée.`);\n}\n\nconst campaign = cfg.newsletter_id.replace(/_test$/, '');\n\n// When the feed gave no source name, derive it from the domain\nconst KNOWN_SOURCES = {\n  'theverge.com': 'The Verge',\n  'theaiinsider.tech': 'The AI Insider',\n  'techcrunch.com': 'TechCrunch',\n  'venturebeat.com': 'VentureBeat',\n  'wired.com': 'Wired',\n};\nfunction sourceFromUrl(url) {\n  const m = String(url || '').match(/^https?:\\/\\/(?:www\\.)?([^\\/?#:]+)/i);\n  if (!m) return 'Source inconnue';\n  const host = m[1].toLowerCase();\n  if (KNOWN_SOURCES[host]) return KNOWN_SOURCES[host];\n  const name = host.split('.').slice(-2, -1)[0] || host;\n  return name.charAt(0).toUpperCase() + name.slice(1);\n}\nconst articles = rows.map((r, idx) => {\n  // Built manually: URLSearchParams / URL are not available in the n8n Code sandbox\n  const utm = Object.entries({\n    utm_source: 'newsletter', utm_medium: 'email',\n    utm_campaign: campaign, utm_content: r.article_id,\n  }).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');\n  return {\n    position: idx + 1,\n    article_id: r.article_id,\n    title: r.title || 'Sans titre',\n    source: r.source || sourceFromUrl(r.url),\n    original_url: r.url,\n    tracking_url: `${r.url}${r.url.includes('?') ? '&' : '?'}${utm}`,\n    category: r.category || 'Other',\n    summary: r.summary || '',\n    relevance_score: Number(r.relevance_score),\n    publication_date: r.published_date || '',\n  };\n});\n\nreturn [{ json: { ...cfg, articles } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        512,
-        0
+        4768,
+        1040
       ],
-      "id": "e43edfed-fd27-4782-a9ec-ba784e5b9f73",
-      "name": "Generate UTM Links"
+      "id": "9588842d-104e-4981-ac52-ff1c0c8ac167",
+      "name": "Build Newsletter Data"
     },
     {
       "parameters": {
-        "jsCode": "const data = $('Generate UTM Links').first().json;\nconst geminiOutput = $input.first().json;\n\nlet html = geminiOutput.content?.parts?.[0]?.text;\n\nif (!html || typeof html !== 'string') {\n  throw new Error('HTML introuvable. Structure reçue : ' + JSON.stringify(geminiOutput).slice(0, 500));\n}\n\nhtml = html.replace(/```html|```/g, '').trim();\n\nreturn [{ json: { ...data, html_content: html } }];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1104,
-        0
-      ],
-      "id": "01c3706c-d653-4ccf-82b0-de83ea701c36",
-      "name": "Clean HTML Output"
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "models/gemini-3-flash-preview"
-        },
+        "promptType": "define",
+        "text": "=Here are this week's selected articles:\n\n{{ $json.articles.map(a => `[${a.article_id}] (${a.category}) ${a.title} — ${a.summary}`).join('\\n') }}\n\nProduce:\n- \"subject_hook\": French email subject hook, max 60 characters, mention 2-3 key names/topics of the week. No emoji.\n- \"introduction\": 2 sentences in French presenting the week's main themes.\n- \"trending\": { \"title\": max 6 words in French, \"text\": 2 sentences in French } — the dominant trend across the articles.\n- \"insights\": exactly 3 short punchy editorial lines in French (max 90 characters each), like quotes.\n- \"short_titles\": for EVERY article, { \"article_id\": exact id from brackets, \"short_title\": French headline, max 6 words }.\n- \"image_keywords\": 4-5 French keywords summarizing the week.\n- \"image_prompt\": ENGLISH prompt for an AI image generator: a square editorial illustration symbolizing this week's themes (use concrete visual metaphors, not text). Style: premium tech magazine cover art, dark charcoal background, warm gold (#A8834A) and soft beige accents, cinematic lighting, minimalist, high detail. Must contain NO text, NO letters, NO logos, NO brand names, NO real people.",
+        "hasOutputParser": true,
         "messages": {
-          "values": [
+          "messageValues": [
             {
-              "content": "=Tu es un designer email. Génère un design de newsletter HTML professionnel, inspiré d'un magazine tech (grille de cartes numérotées, badge de catégorie, titre en gras, résumé court, bouton \"Lire l'article\").\n\nContraintes STRICTES :\n- Réponds UNIQUEMENT avec le code HTML complet (balises <html> à </html>), sans texte avant/après, sans balises markdown.\n- Utilise du CSS inline (compatible clients email).\n- Largeur max 600px, responsive simple.\n- Pour chaque article du tableau \"articles\", utilise EXACTEMENT le champ \"tracking_url\" comme lien du bouton.\n- Affiche : title, category, summary, source pour chaque article.\n- Ajoute en haut le titre \"Newsletter IA — Semaine du [week]\" et le texte d'introduction.\n- Ajoute en bas un pixel de tracking invisible avec newsletter_id.\n- Ajoute une ligne de mention légale en petit texte gris.\n\nVoici les données à utiliser :\n{{ JSON.stringify($json) }}"
+              "message": "You are the editor-in-chief of 'AI Foundry Weekly', the internal AI newsletter of NTT DATA's AI Foundry team. You write short, sharp, factual editorial copy in French. Never invent facts that are not in the provided articles."
             }
           ]
         },
-        "builtInTools": {},
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4976,
+        1040
+      ],
+      "id": "1654b29b-ea07-4cae-b565-be171b1aa95c",
+      "name": "Write Editorial",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
         "options": {
-          "systemMessage": "Tu es un designer email. Génère un design de newsletter HTML professionnel, inspiré d'un magazine tech (grille de cartes numérotées, badge de catégorie, titre en gras, résumé court, bouton \"Lire l'article\").  Contraintes STRICTES : - Réponds UNIQUEMENT avec le code HTML complet (balises <html> à </html>), sans texte avant/après, sans balises markdown. - Utilise du CSS inline (compatible clients email). - Largeur max 600px, responsive simple. - Pour chaque article du tableau \"articles\", utilise EXACTEMENT le champ \"tracking_url\" comme lien du bouton. - Affiche : title, category, summary, source pour chaque article. - Ajoute en haut le titre \"Newsletter IA — Semaine du [week]\" et le texte d'introduction. - Ajoute en bas un pixel de tracking invisible avec newsletter_id. - Ajoute une ligne de mention légale en petit texte gris."
+          "temperature": 0.5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        4944,
+        1248
+      ],
+      "id": "8709824c-a89d-4722-9292-74f9d7efa2d7",
+      "name": "Groq",
+      "credentials": {
+        "groqApi": {
+          "id": "TesFEPs99axKtfYI",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"subject_hook\": {\n      \"type\": \"string\"\n    },\n    \"introduction\": {\n      \"type\": \"string\"\n    },\n    \"trending\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title\": {\n          \"type\": \"string\"\n        },\n        \"text\": {\n          \"type\": \"string\"\n        }\n      },\n      \"required\": [\n        \"title\",\n        \"text\"\n      ]\n    },\n    \"insights\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"short_titles\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"article_id\": {\n            \"type\": \"string\"\n          },\n          \"short_title\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"article_id\",\n          \"short_title\"\n        ]\n      }\n    },\n    \"image_keywords\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"image_prompt\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"subject_hook\",\n    \"introduction\",\n    \"trending\",\n    \"insights\",\n    \"short_titles\",\n    \"image_keywords\",\n    \"image_prompt\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        5104,
+        1248
+      ],
+      "id": "e1c7bd9a-7674-4c63-ad4e-d4c3c3b327f5",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge editorial content with the data. Every field has a fallback,\n// so the newsletter is still sent if the LLM fails.\nconst data = $('Build Newsletter Data').first().json;\nconst ed = $input.first().json.output || {};\n\nconst shortMap = Object.fromEntries((ed.short_titles || []).map(s => [s.article_id, (s.short_title || '').trim()]));\nconst articles = data.articles.map(a => ({ ...a, short_title: shortMap[a.article_id] || a.title }));\n\nconst hook = (ed.subject_hook || '').trim() || `Les actus IA de la semaine du ${data.week_label}`;\nconst subject = `${data.brand_name} #${data.issue_number} · ${hook}${data.test_mode ? ' [TEST]' : ''}`;\n\nconst keywords = (ed.image_keywords || []).slice(0, 5);\nconst basePrompt = (ed.image_prompt || '').trim() ||\n  `Square editorial illustration about artificial intelligence news: ${[...new Set(articles.map(a => a.category))].join(', ')}. ` +\n  `Premium tech magazine cover art, dark charcoal background, warm gold accents, cinematic lighting, minimalist.`;\n\nreturn [{\n  json: {\n    ...data,\n    articles,\n    subject,\n    introduction: (ed.introduction || '').trim() ||\n      `Voici l'essentiel de l'actualité IA de la semaine du ${data.week_label}.`,\n    trending: ed.trending?.title ? ed.trending : { title: articles[0].short_title, text: articles[0].summary },\n    insights: (ed.insights || []).filter(Boolean).slice(0, 3),\n    image_keywords: keywords,\n    image_prompt: basePrompt + ' Square 1:1 composition. No text, no letters, no logos, no watermark.',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5264,
+        1040
+      ],
+      "id": "1ca8ceb4-9c66-4da4-af1f-d05b970a64da",
+      "name": "Merge Editorial"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO newsletters (newsletter_id, week, introduction)\nVALUES ($1, $2::date, $3)\nON CONFLICT (newsletter_id) DO UPDATE SET introduction = EXCLUDED.introduction\nRETURNING newsletter_id, sent_at;",
+        "options": {
+          "queryReplacement": "={{ [ $json.newsletter_id, $json.newsletter_week, $json.introduction ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5424,
+        1040
+      ],
+      "id": "8f7aca92-5620-414d-9b75-75789c0987d4",
+      "name": "Save Newsletter",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3.1-flash-image-preview"
+        },
+        "prompt": "={{ $('Merge Editorial').first().json.image_prompt }}",
+        "options": {
+          "binaryPropertyOutput": "hero_image"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
       "position": [
-        736,
-        0
+        5648,
+        1040
       ],
-      "id": "e86cdaff-3e7b-4fd1-a283-a1a9653bd550",
-      "name": "Message a model",
+      "id": "8b6e8932-e404-4c5c-9d99-39e0cebaf4d4",
+      "name": "Generate AI Image",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate the AI image. If generation failed, the newsletter is still sent\n// with a gold \"AI\" block instead of the picture.\nconst item = $input.first();\nconst bin = item?.binary?.hero_image;\nlet has_hero = false, hero_warning = '';\n\nif (bin) {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'hero_image');\n  if (buf.length > 1000 && buf.length < 5 * 1024 * 1024) {\n    has_hero = true;\n    bin.fileName = 'ai-foundry-weekly.png';\n  } else {\n    hero_warning = `Image invalide (${buf.length} octets)`;\n  }\n} else {\n  hero_warning = \"Génération d'image échouée : \" + JSON.stringify(item?.json?.error ?? item?.json ?? '').slice(0, 200);\n}\n\nreturn [{ json: { has_hero, hero_warning }, binary: has_hero ? { hero_image: bin } : {} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5856,
+        1040
+      ],
+      "id": "ec461b62-177a-4a8d-bc92-f61eb2444c1a",
+      "name": "Check AI Image"
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $('Run Config').first().json.logo_path }}",
+        "options": {
+          "dataPropertyName": "ntt_logo"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        6080,
+        1040
+      ],
+      "id": "3abb251c-942c-4d8d-b11e-b9e1cb9607f8",
+      "name": "Read NTT DATA Logo",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gather both images on one item. The binary field names become the\n// email CIDs:  hero_image -> <img src=\"cid:hero_image\">,  ntt_logo -> cid:ntt_logo\nconst logoItem = $input.first();\nconst hero = $('Check AI Image').first();\nconst binary = {};\nlet has_logo = false;\n\nif (logoItem?.binary?.ntt_logo) {\n  binary.ntt_logo = { ...logoItem.binary.ntt_logo, fileName: 'ntt-data-logo.png' };\n  has_logo = true;\n}\nif (hero.json.has_hero) binary.hero_image = hero.binary.hero_image;\n\nreturn [{\n  json: { has_logo, has_hero: hero.json.has_hero, hero_warning: hero.json.hero_warning },\n  binary,\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6304,
+        1040
+      ],
+      "id": "a6fa5b67-d00b-43fc-8afe-06f96550cb95",
+      "name": "Collect Images"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n//  AI FOUNDRY WEEKLY — email template (Outlook / Gmail safe)\n//  Tables + inline CSS only. No flex/grid, no CSS gradients.\n//  Placeholders replaced per recipient: %%GREETING%%, %%UNSUBSCRIBE_URL%%, %%TRACKING_PIXEL%%\n// ============================================================\nfunction renderNewsletter(d) {\n  const C = {\n    page: '#EFE9DF', paper: '#FBF8F3', ink: '#141414', gold: '#A8834A',\n    goldSoft: '#EFE4D2', muted: '#57534E', line: '#E3D9C8', dark: '#161616', white: '#FFFFFF',\n  };\n  const SERIF = \"Georgia, 'Times New Roman', Times, serif\";\n  const SANS = \"'Segoe UI', Arial, Helvetica, sans-serif\";\n\n  const L = { // labels (switch to English here if needed)\n    tagline: \"L'ESSENTIEL. L'AVENIR.\",\n    bar: 'LES ACTUS IA À NE PAS MANQUER',\n    week: 'SEMAINE DU',\n    headlines: 'À LA UNE CETTE SEMAINE',\n    read: \"LIRE L'ARTICLE\",\n    trending: 'TENDANCE',\n    footer1: 'RESTEZ INFORMÉ.', footer2: \"GARDEZ UNE LONGUEUR D'AVANCE.\",\n    aiCaption: 'Illustration générée par IA',\n    test: 'VERSION DE TEST — non envoyée au groupe',\n  };\n\n  const CAT = {\n    'Research':             { icon: '🔬', label: 'RECHERCHE' },\n    'Product Launch':       { icon: '🚀', label: 'LANCEMENT' },\n    'Funding & Business':   { icon: '💼', label: 'BUSINESS' },\n    'Policy & Regulation':  { icon: '⚖️', label: 'RÉGULATION' },\n    'Tools & Applications': { icon: '🛠️', label: 'OUTILS' },\n    'Other':                { icon: '📰', label: 'ACTUALITÉ' },\n  };\n\n  const esc = s => String(s ?? '')\n    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n  const pad2 = n => String(n).padStart(2, '0');\n  const shortDate = iso => {\n    if (!iso) return '';\n    const dt = new Date(iso + 'T12:00:00Z');\n    return isNaN(dt) ? '' : dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });\n  };\n\n  // ---------- one article card ----------\n  const card = a => {\n    const cat = CAT[a.category] || CAT.Other;\n    const meta = [a.source, shortDate(a.publication_date)].filter(Boolean).map(esc).join(' · ');\n    return `\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border:1px solid ${C.line};background:${C.white};border-radius:6px;\">\n  <tr><td bgcolor=\"${C.dark}\" style=\"background:${C.dark};border-radius:6px 6px 0 0;padding:0;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n      <tr>\n        <td width=\"44\" valign=\"top\" style=\"padding:0;\">\n          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n            <td bgcolor=\"${C.gold}\" style=\"background:${C.gold};color:${C.white};font-family:${SERIF};font-size:16px;font-weight:bold;padding:8px 10px;border-radius:6px 0 6px 0;\">${pad2(a.position)}</td>\n          </tr></table>\n        </td>\n        <td align=\"center\" style=\"padding:18px 44px 16px 0;\">\n          <div style=\"font-size:34px;line-height:40px;\">${cat.icon}</div>\n          <div style=\"font-family:${SANS};font-size:10px;letter-spacing:2px;color:${C.gold};font-weight:bold;padding-top:6px;\">${cat.label}</div>\n        </td>\n      </tr>\n    </table>\n  </td></tr>\n  <tr><td style=\"padding:16px 16px 18px 16px;\">\n    <div style=\"font-family:${SANS};font-size:14px;line-height:19px;font-weight:bold;color:${C.ink};text-transform:uppercase;letter-spacing:.4px;\">${esc(a.short_title || a.title)}</div>\n    <div style=\"font-family:${SANS};font-size:13px;line-height:20px;color:${C.muted};padding-top:8px;\">${esc(a.summary)}</div>\n    <div style=\"font-family:${SANS};font-size:11px;color:${C.gold};padding-top:10px;\">${meta}</div>\n    <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin-top:14px;\"><tr>\n      <td style=\"border:1px solid ${C.gold};border-radius:3px;\">\n        <a href=\"${esc(a.tracking_url)}\" target=\"_blank\" style=\"display:inline-block;padding:8px 14px;font-family:${SANS};font-size:11px;font-weight:bold;letter-spacing:1.5px;color:${C.ink};text-decoration:none;\">${L.read} &rarr;</a>\n      </td>\n    </tr></table>\n  </td></tr>\n</table>`;\n  };\n\n  // ---------- 2-column card grid ----------\n  let grid = '';\n  for (let i = 0; i < d.articles.length; i += 2) {\n    const a = d.articles[i], b = d.articles[i + 1];\n    grid += `\n<tr>\n  <td class=\"stack\" width=\"50%\" valign=\"top\" style=\"padding:0 8px 16px 0;\">${card(a)}</td>\n  <td class=\"stack\" width=\"50%\" valign=\"top\" style=\"padding:0 0 16px 8px;\">${b ? card(b) : '&nbsp;'}</td>\n</tr>`;\n  }\n\n  // ---------- header right side: AI image (or fallback) ----------\n  const heroCell = d.has_hero\n    ? `<img class=\"hero-img\" src=\"cid:hero_image\" width=\"230\" height=\"230\" alt=\"Illustration IA de la semaine\" style=\"display:block;width:230px;height:230px;border:1px solid ${C.gold};border-radius:6px;\">\n       <div style=\"font-family:${SANS};font-size:9px;line-height:13px;color:${C.muted};padding-top:6px;text-align:center;\">${L.aiCaption}${d.image_keywords?.length ? ' · ' + esc(d.image_keywords.slice(0, 4).join(', ')) : ''}</div>`\n    : `<table role=\"presentation\" width=\"230\" height=\"230\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-radius:6px;\"><tr>\n         <td align=\"center\" valign=\"middle\" bgcolor=\"${C.dark}\" style=\"background:${C.dark};border-radius:6px;font-family:${SERIF};font-size:64px;color:${C.gold};height:230px;\">AI</td>\n       </tr></table>`;\n\n  const logo = d.has_logo\n    ? `<img src=\"cid:ntt_logo\" height=\"26\" alt=\"NTT DATA\" style=\"display:block;height:26px;width:auto;border:0;\">`\n    : `<span style=\"font-family:${SANS};font-size:15px;font-weight:bold;color:#0072BC;letter-spacing:1px;\">NTT DATA</span>`;\n\n  // ---------- trending + insights ----------\n  const insights = (d.insights || []).map((q, i) => `\n    <div style=\"font-family:${SANS};font-size:13px;line-height:19px;color:${C.ink};padding:10px 0;${i < d.insights.length - 1 ? `border-bottom:1px solid ${C.goldSoft};` : ''}\">${esc(q)}</div>`).join('');\n\n  const pillars = [\n    ['🧠', 'RECHERCHE', 'Avancées & papers'],\n    ['🚀', 'PRODUITS', 'Lancements & outils'],\n    ['💼', 'BUSINESS', 'Financements & marché'],\n    ['⚖️', 'RÉGULATION', 'Politiques & éthique'],\n  ].map(([ic, t, s], i) => `\n    <td class=\"stack\" width=\"25%\" valign=\"top\" style=\"padding:14px 6px;${i < 3 ? `border-right:1px solid ${C.line};` : ''}\">\n      <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n        <td valign=\"top\" style=\"font-size:20px;padding-right:8px;\">${ic}</td>\n        <td valign=\"top\" style=\"font-family:${SANS};\">\n          <div style=\"font-size:11px;font-weight:bold;color:${C.ink};letter-spacing:.5px;\">${t}</div>\n          <div style=\"font-size:10px;color:${C.muted};padding-top:2px;\">${s}</div>\n        </td>\n      </tr></table>\n    </td>`).join('');\n\n  const preheader = esc((d.introduction || '').slice(0, 140));\n\n  return `<!DOCTYPE html>\n<html lang=\"fr\" xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"x-apple-disable-message-reformatting\">\n<title>${esc(d.subject || d.brand_name)}</title>\n<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->\n<style>\n  body{margin:0;padding:0;-webkit-text-size-adjust:100%;}\n  a{color:${C.ink};}\n  @media only screen and (max-width:620px){\n    .container{width:100% !important;}\n    .stack{display:block !important;width:100% !important;box-sizing:border-box;padding-left:0 !important;padding-right:0 !important;border-right:0 !important;}\n    .pad{padding-left:18px !important;padding-right:18px !important;}\n    .mast1{font-size:38px !important;line-height:40px !important;}\n    .mast2{font-size:44px !important;line-height:46px !important;}\n    .hero-wrap{padding-top:20px !important;}\n    .hero-img{width:100% !important;height:auto !important;max-width:320px !important;}\n  }\n</style>\n</head>\n<body style=\"margin:0;padding:0;background:${C.page};\">\n<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">${preheader}&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"${C.page}\" style=\"background:${C.page};\">\n<tr><td align=\"center\" style=\"padding:24px 10px;\">\n<table role=\"presentation\" class=\"container\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"${C.paper}\" style=\"width:600px;background:${C.paper};border:1px solid ${C.line};\">\n\n  ${d.test_mode ? `<tr><td align=\"center\" bgcolor=\"#FFF3CD\" style=\"background:#FFF3CD;font-family:${SANS};font-size:11px;font-weight:bold;letter-spacing:1px;color:#7A5B00;padding:8px;\">${L.test}</td></tr>` : ''}\n\n  <!-- top bar -->\n  <tr><td class=\"pad\" style=\"padding:18px 28px 0 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td valign=\"middle\">${logo}</td>\n      <td valign=\"middle\" align=\"right\" style=\"font-family:${SANS};font-size:10px;letter-spacing:2px;color:${C.muted};\">AI FOUNDRY &nbsp;·&nbsp; N°${esc(d.issue_number)}</td>\n    </tr></table>\n  </td></tr>\n\n  <!-- masthead + AI image -->\n  <tr><td class=\"pad\" style=\"padding:22px 28px 8px 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td class=\"stack\" width=\"300\" valign=\"top\" style=\"padding-right:14px;\">\n        <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n          <td style=\"border:1px solid ${C.ink};padding:5px 10px;font-family:${SANS};font-size:10px;letter-spacing:2.5px;color:${C.ink};\">${L.tagline}</td>\n        </tr></table>\n        <div class=\"mast1\" style=\"font-family:${SERIF};font-size:46px;line-height:48px;font-weight:bold;color:${C.ink};padding-top:18px;letter-spacing:1px;\">AI FOUNDRY</div>\n        <div class=\"mast2\" style=\"font-family:${SERIF};font-size:52px;line-height:54px;color:${C.gold};letter-spacing:2px;\">WEEKLY</div>\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin-top:14px;\"><tr>\n          <td bgcolor=\"${C.ink}\" style=\"background:${C.ink};color:${C.white};font-family:${SANS};font-size:10px;letter-spacing:2px;padding:8px 12px;\">${L.bar}</td>\n        </tr></table>\n        <div style=\"font-family:${SANS};font-size:10px;letter-spacing:1.5px;color:${C.ink};padding-top:16px;white-space:nowrap;\">\n          <span style=\"color:${C.gold};\">&mdash;&mdash;</span>&nbsp; 📅 &nbsp;${L.week} ${esc(String(d.week_label).toUpperCase())}\n        </div>\n      </td>\n      <td class=\"stack hero-wrap\" width=\"230\" valign=\"top\" align=\"center\">${heroCell}</td>\n    </tr></table>\n  </td></tr>\n\n  <!-- greeting + intro -->\n  <tr><td class=\"pad\" style=\"padding:22px 28px 6px 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td style=\"border-left:3px solid ${C.gold};padding:4px 0 4px 14px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.ink};\">\n        <strong>%%GREETING%%</strong><br>${esc(d.introduction)}\n      </td>\n    </tr></table>\n  </td></tr>\n\n  <!-- section title -->\n  <tr><td class=\"pad\" style=\"padding:22px 28px 14px 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td width=\"30%\" style=\"border-bottom:1px solid ${C.gold};font-size:1px;line-height:1px;\">&nbsp;</td>\n      <td align=\"center\" style=\"font-family:${SANS};font-size:11px;font-weight:bold;letter-spacing:3px;color:${C.ink};padding:0 12px;white-space:nowrap;\">${L.headlines}</td>\n      <td width=\"30%\" style=\"border-bottom:1px solid ${C.gold};font-size:1px;line-height:1px;\">&nbsp;</td>\n    </tr></table>\n  </td></tr>\n\n  <!-- cards -->\n  <tr><td class=\"pad\" style=\"padding:0 28px 4px 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">${grid}</table>\n  </td></tr>\n\n  <!-- trending + insights -->\n  <tr><td class=\"pad\" style=\"padding:4px 28px 22px 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td class=\"stack\" width=\"50%\" valign=\"top\" style=\"padding-right:8px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border:1px solid ${C.line};background:${C.white};border-radius:6px;\">\n          <tr><td style=\"padding:0;\">\n            <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n              <td bgcolor=\"${C.ink}\" style=\"background:${C.ink};color:${C.white};font-family:${SANS};font-size:11px;font-weight:bold;letter-spacing:2px;padding:9px 14px;border-radius:6px 0 0 0;\">${L.trending} 🔥</td>\n            </tr></table>\n          </td></tr>\n          <tr><td style=\"padding:14px 16px 18px 16px;\">\n            <div style=\"font-family:${SANS};font-size:14px;font-weight:bold;color:${C.ink};text-transform:uppercase;line-height:19px;\">${esc(d.trending?.title)}</div>\n            <div style=\"font-family:${SANS};font-size:12px;line-height:18px;color:${C.muted};padding-top:8px;\">${esc(d.trending?.text)}</div>\n          </td></tr>\n        </table>\n      </td>\n      <td class=\"stack\" width=\"50%\" valign=\"top\" style=\"padding-left:8px;\">\n        <div style=\"font-family:${SERIF};font-size:54px;line-height:40px;color:${C.gold};height:34px;\">&ldquo;</div>\n        ${insights}\n      </td>\n    </tr></table>\n  </td></tr>\n\n  <!-- pillars -->\n  <tr><td class=\"pad\" style=\"padding:0 28px;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-top:1px solid ${C.line};border-bottom:1px solid ${C.line};\"><tr>${pillars}</tr></table>\n  </td></tr>\n\n  <!-- footer bar -->\n  <tr><td style=\"padding:22px 0 0 0;\">\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n      <td align=\"center\" bgcolor=\"${C.ink}\" style=\"background:${C.ink};padding:14px 10px;font-family:${SANS};font-size:12px;letter-spacing:2.5px;color:${C.white};\">\n        ${L.footer1} <span style=\"color:${C.gold};\">${L.footer2}</span>\n      </td>\n    </tr></table>\n  </td></tr>\n\n  <!-- legal -->\n  <tr><td class=\"pad\" align=\"center\" style=\"padding:16px 28px 22px 28px;font-family:${SANS};font-size:10px;line-height:15px;color:#8A847C;\">\n    Vous recevez cet email en tant que membre du groupe AI Foundry — NTT DATA.<br>\n    Résumés et illustration générés automatiquement par IA à partir des sources citées ; consultez l'article original pour le détail.<br>\n    <a href=\"%%UNSUBSCRIBE_URL%%\" style=\"color:#8A847C;text-decoration:underline;\">Se désinscrire</a>\n    %%TRACKING_PIXEL%%\n  </td></tr>\n\n</table>\n</td></tr>\n</table>\n</body>\n</html>`;\n}\n\n\n// ---------------- n8n wrapper ----------------\nconst d = $('Merge Editorial').first().json;\nconst img = $input.first().json;\nconst html = renderNewsletter({ ...d, has_logo: img.has_logo, has_hero: img.has_hero });\nreturn [{ json: { subject: d.subject, html, html_size_kb: Math.round(html.length / 1024) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6528,
+        1040
+      ],
+      "id": "0a623ab3-ceb8-42bb-bf32-3b8ad391ac82",
+      "name": "Render HTML Template"
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $('Run Config').first().json.recipients_file }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        4096,
+        1456
+      ],
+      "id": "3960abda-3827-43d4-8fbc-a069e5acd2d6",
+      "name": "Read Recipients File",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "sheetName": "Recipients"
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        4320,
+        1456
+      ],
+      "id": "8c278d03-6b54-47f8-87c3-55397fc0ceac",
+      "name": "Read Recipients Excel",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- People who already received THIS newsletter (safe re-runs, no double send)\nSELECT DISTINCT subscriber_email\nFROM delivery_log\nWHERE newsletter_id = $1\n  AND status = 'sent';",
+        "options": {
+          "queryReplacement": "={{ [ $('Run Config').first().json.newsletter_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4544,
+        1456
+      ],
+      "id": "2aceae6b-a871-4394-bd7d-dd52da3b1c5b",
+      "name": "Get Already Sent",
+      "executeOnce": true,
+      "alwaysOutputData": true,
       "credentials": {
-        "googlePalmApi": {
-          "id": "D5XBt46rAiuVTnAS",
-          "name": "Google Gemini(PaLM) - newslatter"
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the recipient list:\n//   TEST mode          -> test_recipients (always re-sendable)\n//   source = 'excel'   -> rows of the Excel file\n//   source = 'list'    -> recipients_list from Run Config\n// Then: validate emails, skip active = no, remove duplicates and people already sent.\nconst cfg = $('Run Config').first().json;\n\nconst norm = k => String(k).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z]/g, '');\nconst EMAIL_KEYS  = ['email', 'mail', 'emailaddress', 'adresseemail', 'courriel'];\nconst NAME_KEYS   = ['firstname', 'prenom', 'givenname', 'name', 'nom'];\nconst ACTIVE_KEYS = ['active', 'actif', 'send', 'envoyer'];\nconst pick = (row, keys) => {\n  for (const [k, v] of Object.entries(row || {})) if (keys.includes(norm(k))) return v;\n  return undefined;\n};\nconst isActive = v => v === undefined || v === null || String(v).trim() === '' ||\n  ['yes', 'oui', 'true', '1', 'y', 'x', 'active', 'actif'].includes(String(v).trim().toLowerCase());\nconst EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nlet source, raw;\nif (cfg.test_mode) {\n  source = 'test'; raw = cfg.test_recipients;\n} else if (cfg.recipients_source === 'list') {\n  source = 'list'; raw = cfg.recipients_list;\n} else {\n  source = 'excel';\n  raw = $('Read Recipients Excel').all().map(i => i.json);\n  if (raw.length && raw[0].error) {\n    throw new Error(`Fichier Excel introuvable ou illisible (${cfg.recipients_file}) : ${raw[0].error}`);\n  }\n}\n\nconst alreadySent = new Set(cfg.test_mode ? [] :\n  $('Get Already Sent').all().map(i => String(i.json.subscriber_email || '').toLowerCase()).filter(Boolean));\n\nconst seen = new Set();\nconst invalid = [];\nlet skippedInactive = 0, skippedAlreadySent = 0;\nconst list = [];\n\nfor (const r of raw || []) {\n  const email = String(pick(r, EMAIL_KEYS) ?? '').trim().toLowerCase();\n  if (!email) continue;\n  if (!EMAIL_RE.test(email)) { invalid.push(email); continue; }\n  if (!isActive(pick(r, ACTIVE_KEYS))) { skippedInactive++; continue; }\n  if (seen.has(email)) continue;\n  seen.add(email);\n  if (alreadySent.has(email)) { skippedAlreadySent++; continue; }\n  list.push({ email, first_name: String(pick(r, NAME_KEYS) ?? '').trim(), unsubscribe_token: '' });\n}\n\nif (!list.length) {\n  throw new Error(`Aucun destinataire à qui envoyer (source : ${source}). ` +\n    `Inactifs : ${skippedInactive}, déjà reçue : ${skippedAlreadySent}, invalides : ${invalid.length}.`);\n}\n\nconst stats = { source, invalid_emails: invalid, skipped_inactive: skippedInactive, skipped_already_sent: skippedAlreadySent };\nreturn list.map(r => ({ json: { ...r, recipient_stats: stats } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4768,
+        1456
+      ],
+      "id": "7520d1d9-7868-4d0b-b031-63bad96526cf",
+      "name": "Choose Recipients"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4976,
+        1456
+      ],
+      "id": "95ce45f0-8e01-49d8-b723-829c22a36ebc",
+      "name": "Loop Over Recipients"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const tpl = $('Render HTML Template').first().json;\nconst images = $('Collect Images').first().binary || {};\nconst cfg = $('Run Config').first().json;\nconst esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\n\nconst first = String($json.first_name || '').trim().split(/\\s+/)[0];\nconst greeting = first ? `Bonjour ${esc(first)},` : 'Bonjour,';\n\nconst unsubscribe = (cfg.unsubscribe_base_url && $json.unsubscribe_token)\n  ? `${cfg.unsubscribe_base_url}?token=${encodeURIComponent($json.unsubscribe_token)}`\n  : `mailto:${cfg.sender_email}?subject=${encodeURIComponent('Désinscription ' + cfg.brand_name)}`;\n\nconst pixel = (cfg.tracking_base_url && $json.unsubscribe_token)\n  ? `<img src=\"${cfg.tracking_base_url}/open?nid=${encodeURIComponent(cfg.newsletter_id)}&t=${encodeURIComponent($json.unsubscribe_token)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:block;border:0;width:1px;height:1px;\">`\n  : '';\n\nconst html = tpl.html\n  .replaceAll('%%GREETING%%', greeting)\n  .replaceAll('%%UNSUBSCRIBE_URL%%', esc(unsubscribe))\n  .replaceAll('%%TRACKING_PIXEL%%', pixel);\n\nreturn { json: { email: $json.email, subject: tpl.subject, html }, binary: images };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        1648
+      ],
+      "id": "b67b4f47-bace-4c91-8caa-6fd6fd327d58",
+      "name": "Personalize Email"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Run Config').first().json.sender_name }} <{{ $('Run Config').first().json.sender_email }}>",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "={{ Object.keys($input.item.binary || {}).join(',') }}"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        5424,
+        1648
+      ],
+      "id": "74b1b2de-14f5-4fad-bbcb-6c64fbea2d66",
+      "name": "Send via Gmail",
+      "webhookId": "2cd6a2e7-50f9-4f01-b725-c310055c1797",
+      "credentials": {
+        "smtp": {
+          "id": "DMOzwTt8HpTUfC0q",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p = $('Personalize Email').item.json;\nconst cfg = $('Run Config').first().json;\nconst failed = !!$json.error;\nreturn {\n  json: {\n    newsletter_id: cfg.newsletter_id,\n    email: p.email,\n    status: failed ? 'failed' : 'sent',\n    error: failed ? String($json.error).slice(0, 300) : '',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5648,
+        1648
+      ],
+      "id": "d14771a2-070e-4d99-8522-128df2659a6f",
+      "name": "Build Delivery Log"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO delivery_log (newsletter_id, subscriber_email, status)\nVALUES ($1, $2, $3)\nRETURNING newsletter_id, subscriber_email, status, $4::text AS error;",
+        "options": {
+          "queryReplacement": "={{ [ $json.newsletter_id, $json.email, $json.status, $json.error ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5856,
+        1648
+      ],
+      "id": "a9900098-92da-49be-b3fd-d1a1a8ea7384",
+      "name": "Save Delivery Log",
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6080,
+        1648
+      ],
+      "id": "5310b1d4-2c0f-4357-8ef5-a3c41cdcb9f9",
+      "name": "Wait 2s",
+      "webhookId": "d1ee1d70-8e40-490f-a565-871c7e2fcc4a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Run Config').first().json;\nconst logs = $input.all().map(i => i.json);\nconst failed = logs.filter(l => l.status === 'failed');\nreturn [{\n  json: {\n    newsletter_id: cfg.newsletter_id,\n    test_mode: cfg.test_mode,\n    total: logs.length,\n    sent: logs.length - failed.length,\n    failed: failed.length,\n    failed_details: failed.map(f => `${f.subscriber_email}: ${f.error}`),\n    hero_warning: $('Collect Images').first().json.hero_warning || '',\n    recipients: $('Choose Recipients').first().json.recipient_stats,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5424,
+        1456
+      ],
+      "id": "1037f775-0189-4658-8bb5-7f282a27c4dc",
+      "name": "Summarize Run"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cd2a424a-7d96-4dcb-9e33-1b3f1793eab0",
+              "leftValue": "={{ $json.failed > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5648,
+        1456
+      ],
+      "id": "73034a6a-b735-4782-97f4-1688e1208a50",
+      "name": "Any Failures?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $json.failed }} envoi(s) échoué(s) sur {{ $json.total }}. Relancez le workflow : seuls les destinataires manquants recevront l'email. Détails : {{ $json.failed_details.join(' | ') }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        5856,
+        1312
+      ],
+      "id": "615aeb53-ceeb-4116-a71d-2fa2861aa645",
+      "name": "Stop: Some Emails Failed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d9e3f60c-d4b9-487a-b549-8ff34cda3e32",
+              "leftValue": "={{ $('Run Config').first().json.test_mode }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5856,
+        1472
+      ],
+      "id": "645c265f-602a-4190-96ea-9a6b259aa1d8",
+      "name": "Test Mode?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6080,
+        1392
+      ],
+      "id": "2ccebe77-b8bf-4672-82f3-11622fd5ac3c",
+      "name": "Test Done (nothing marked)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH n AS (\n  UPDATE newsletters SET sent_at = NOW()\n  WHERE newsletter_id = $1\n  RETURNING newsletter_id\n),\na AS (\n  UPDATE processed_articles SET status = 'sent'\n  WHERE newsletter_week = $2::date AND status = 'selected'\n  RETURNING article_id\n)\nSELECT $1 AS newsletter_id,\n       (SELECT count(*) FROM n) AS newsletter_marked_sent,\n       (SELECT count(*) FROM a) AS articles_marked_sent;",
+        "options": {
+          "queryReplacement": "={{ [ $('Run Config').first().json.newsletter_id, $('Run Config').first().json.newsletter_week ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        6080,
+        1520
+      ],
+      "id": "63495908-72dc-4127-9011-3bbc001cd14d",
+      "name": "Mark Newsletter as Sent",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "6d2qLnvqDcFhVDRd",
+          "name": "Postgres account"
         }
       }
     }
   ],
   "pinData": {},
   "connections": {
-    "Start test": {
+    "Run Config": {
       "main": [
         [
           {
-            "node": "Mock Articles Input",
+            "node": "Fetch Selected Articles",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Mock Articles Input": {
+    "Fetch Selected Articles": {
       "main": [
         [
           {
-            "node": "Validate Data",
+            "node": "Build Newsletter Data",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Validate Data": {
+    "Build Newsletter Data": {
       "main": [
         [
           {
-            "node": "Generate UTM Links",
+            "node": "Write Editorial",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Code in JavaScript": {
+    "Write Editorial": {
       "main": [
         [
           {
-            "node": "Send an Email",
+            "node": "Merge Editorial",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Generate UTM Links": {
+    "Merge Editorial": {
       "main": [
         [
           {
-            "node": "Message a model",
+            "node": "Save Newsletter",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Clean HTML Output": {
+    "Save Newsletter": {
       "main": [
         [
           {
-            "node": "Code in JavaScript",
+            "node": "Generate AI Image",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Message a model": {
+    "Generate AI Image": {
       "main": [
         [
           {
-            "node": "Clean HTML Output",
+            "node": "Check AI Image",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check AI Image": {
+      "main": [
+        [
+          {
+            "node": "Read NTT DATA Logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read NTT DATA Logo": {
+      "main": [
+        [
+          {
+            "node": "Collect Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Images": {
+      "main": [
+        [
+          {
+            "node": "Render HTML Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render HTML Template": {
+      "main": [
+        [
+          {
+            "node": "Read Recipients File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recipients File": {
+      "main": [
+        [
+          {
+            "node": "Read Recipients Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recipients Excel": {
+      "main": [
+        [
+          {
+            "node": "Get Already Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Already Sent": {
+      "main": [
+        [
+          {
+            "node": "Choose Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose Recipients": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Run Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test": {
+      "main": [
+        [
+          {
+            "node": "Run Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Recipients": {
+      "main": [
+        [
+          {
+            "node": "Summarize Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Personalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Personalize Email": {
+      "main": [
+        [
+          {
+            "node": "Send via Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Gmail": {
+      "main": [
+        [
+          {
+            "node": "Build Delivery Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delivery Log": {
+      "main": [
+        [
+          {
+            "node": "Save Delivery Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Delivery Log": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Run": {
+      "main": [
+        [
+          {
+            "node": "Any Failures?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Failures?": {
+      "main": [
+        [
+          {
+            "node": "Stop: Some Emails Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Test Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Mode?": {
+      "main": [
+        [
+          {
+            "node": "Test Done (nothing marked)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Newsletter as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Editorial",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Write Editorial",
+            "type": "ai_outputParser",
             "index": 0
           }
         ]
@@ -223,11 +908,12 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "3c4524fa-fab5-42b2-aca7-8eb51dc2213c",
+  "versionId": "4e2a59ff-73ed-4ef7-a211-ade6464bf4fe",
   "meta": {
-    "instanceId": "4f0f45f2c31d3030b7c6ab7f88cd6ddd0a6557e67d824baa98a352a2dafbf4a5"
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
   },
   "nodeGroups": [],
-  "id": "6M3rJU7vICJb97on",
+  "id": "V9BgwJ8sUYQx67NT",
   "tags": []
 }
