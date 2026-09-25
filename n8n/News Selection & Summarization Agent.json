@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Central configuration for this run - change values here only.\nconst now = $now.setZone('Africa/Casablanca');\nconst monday = now.startOf('week');\n\nreturn [{\n  json: {\n    newsletter_week: monday.toISODate(),                                   // e.g. 2026-09-21\n    newsletter_id: `nl_${now.weekYear}_w${String(now.weekNumber).padStart(2, '0')}`, // e.g. nl_2026_w39\n    lookback_days: 7,        // only consider articles collected in the last N days\n    max_articles: 40,        // safety cap on LLM calls per run\n    min_relevance: 7,        // minimum score (0-10) to be selected\n    top_n: 8,                // number of articles in the newsletter\n    llm_wait_seconds: 15,    // pause between LLM calls (Groq rate limits)\n    summary_language: 'French',\n  },\n}];"
+        "jsCode": "// Central configuration for this run - change values here only.\nconst now = $now.setZone('Africa/Casablanca');\nconst monday = now.startOf('week');\n\nreturn [{\n  json: {\n    newsletter_week: monday.toISODate(),                                   // e.g. 2026-09-21\n    newsletter_id: `nl_${now.weekYear}_w${String(now.weekNumber).padStart(2, '0')}`, // e.g. nl_2026_w39\n    lookback_days: 7,        // only consider articles collected in the last N days\n    max_articles: 40,        // safety cap on LLM calls per run\n    min_relevance: 7,        // minimum score (0-10) to be selected\n    top_n: 8,                // number of articles in the newsletter\n    llm_wait_seconds: 15,    // pause between LLM calls (Groq rate limits)\n    summary_language: 'English',\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -619,7 +619,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "9d3cd908-8926-4177-8e15-0fb2ec3d38bc",
+  "versionId": "f651c452-ca07-4440-ac10-9a6fabbc2491",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "3602356556f900f9fa854c26f0f13c55e8dbe38210bdf0a39659507f8d3a2536"
